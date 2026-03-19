@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visor Geográfico IDEAM - RiesGeo</title>
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+    
+    <!-- Google Fonts - Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        body { margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+        #map { position: absolute; top: 0; bottom: 0; right: 0; left: 0; background: #0f172a; }
+        
+        /* Glassmorphism Header */
+        .visor-header {
+            position: absolute;
+            top: 15px;
+            left: 60px;
+            z-index: 1000;
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(10px);
+            padding: 12px 20px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            pointer-events: none;
+        }
+        .visor-header h1 { margin: 0; font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+        .visor-header p { margin: 4px 0 0; font-size: 11px; color: rgba(255, 255, 255, 0.6); }
+
+        /* Custom Popup Styling */
+        .leaflet-popup-content-wrapper {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            padding: 5px;
+        }
+        .attr-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 5px; }
+        .attr-table tr { border-bottom: 1px solid #eee; }
+        .attr-table th { text-align: left; padding: 4px; color: #64748b; text-transform: uppercase; font-size: 9px; }
+        .attr-table td { padding: 4px; color: #1e293b; font-weight: 600; }
+        .layer-title { font-weight: 700; color: #1e3a8a; border-bottom: 2px solid #3b82f6; padding-bottom: 4px; margin-bottom: 5px; font-size: 12px; }
+
+        /* Layer Control customization */
+        .leaflet-control-layers {
+            background: rgba(15, 23, 42, 0.9) !important;
+            border: 1px solid rgba(255,255,255,0.1) !important;
+            color: white !important;
+            border-radius: 10px !important;
+            padding: 8px !important;
+        }
+        .leaflet-control-layers-overlays label { font-size: 12px; margin-bottom: 4px; display: block; }
+    </style>
+</head>
+<body>
+
+    <div class="visor-header">
+        <h1>Visor IDEAM - Vulnerabilidad</h1>
+        <p>Referencia Espacial EPSG:4686 | Pereira, Colombia</p>
+    </div>
+
+    <div id="map"></div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+    
+    <!-- Esri Leaflet -->
+    <script src="https://unpkg.com/esri-leaflet@3.0.12/dist/esri-leaflet.js"></script>
+
+    <script>
+        // Coordenadas de Pereira, Colombia
+        const PEREIRA_COORDS = [4.8133, -75.6961];
+
+        // Inicializar el mapa
+        const map = L.map('map', {
+            zoomControl: true,
+            maxZoom: 18,
+            minZoom: 5
+        }).setView(PEREIRA_COORDS, 11);
+
+        // Capa base (CartoDB Dark Matter para resaltar los colores del IDEAM)
+        const darkBase = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '© OpenStreetMap contributors, © CARTO'
+        }).addTo(map);
+
+        const satelliteBase = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+        });
+
+        // URL del Servicio IDEAM
+        const serviceUrl = 'https://visualizador.ideam.gov.co/gisserver/rest/services/Vulnerabilidad_Susceptibilidad_Ambiental/MapServer';
+
+        // Función para generar popups dinámicos
+        function createPopup(feature) {
+            let html = `<div class="layer-title">ATRIBUTOS DE CAPA</div>`;
+            html += `<table class="attr-table">`;
+            for (let key in feature.properties) {
+                let val = feature.properties[key];
+                if (val === null || val === undefined) val = 'N/A';
+                html += `<tr><th>${key}</th><td>${val}</td></tr>`;
+            }
+            html += `</table>`;
+            return html;
+        }
+
+        // Definición de Capas como FeatureLayers para interactividad
+        
+        // 1. Categorización SZH (ID 0)
+        const szhLayer = L.esri.featureLayer({
+            url: serviceUrl + '/0',
+            style: function () {
+                return { color: '#3b82f6', weight: 1, fillOpacity: 0.3 };
+            }
+        }).addTo(map);
+
+        // 2. Inundación (ID 1)
+        const inundacionLayer = L.esri.featureLayer({
+            url: serviceUrl + '/1',
+            style: function () {
+                return { color: '#06b6d4', weight: 1, fillOpacity: 0.5 };
+            }
+        }).addTo(map);
+
+        // 3. Deslizamientos (ID 2)
+        const deslizamientosLayer = L.esri.featureLayer({
+            url: serviceUrl + '/2',
+            style: function (feature) {
+                // Estilo simple por defecto
+                return { color: '#ef4444', weight: 1, fillOpacity: 0.5 };
+            }
+        }).addTo(map);
+
+        // Vincular popups a todas las feature layers
+        [szhLayer, inundacionLayer, deslizamientosLayer].forEach(layer => {
+            layer.bindPopup(function (evt) {
+                return createPopup(evt.feature);
+            });
+        });
+
+        // Control de Capas
+        const baseMaps = {
+            "Mapa Oscuro": darkBase,
+            "Satélite": satelliteBase
+        };
+
+        const overlayMaps = {
+            "SZH (Cuencas)": szhLayer,
+            "Zonas Inundación": inundacionLayer,
+            "Zonas Deslizamiento": deslizamientosLayer
+        };
+
+        L.control.layers(baseMaps, overlayMaps, { collapsed: false }).addTo(map);
+
+        // Añadir escala
+        L.control.scale().addTo(map);
+
+    </script>
+</body>
+</html>

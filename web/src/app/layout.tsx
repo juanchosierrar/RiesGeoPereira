@@ -1,15 +1,15 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter, Outfit } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider"
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const outfit = Outfit({
+  variable: "--font-outfit",
   subsets: ["latin"],
 });
 
@@ -23,18 +23,18 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "Antigravity Kit - AI Agent Capability Expansion Toolkit",
-  description: "A comprehensive collection of skills, rules, and workflows to supercharge AI coding assistants for Antigravity. 35+ skills, 57 UI Styles, production-ready workflows.",
-  metadataBase: new URL("https://antigravity-kit.vercel.app/"),
+  title: "RiesGeoPereira - Plataforma Geoespacial SaaS",
+  description: "Sistema Avanzado de Visualización y Análisis de Riesgos Geográficos",
+  metadataBase: new URL("https://riesgeopereira.app/"),
   robots: {
     index: true,
     follow: true,
   },
   openGraph: {
     type: "website",
-    locale: "en_US",
-    url: "https://antigravity-kit.vercel.app/",
-    siteName: "Antigravity Kit",
+    locale: "es_CO",
+    url: "https://riesgeopereira.app/",
+    siteName: "RiesGeoPereira",
     images: ["/images/logo.png"],
   },
 };
@@ -47,7 +47,8 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${inter.variable} ${outfit.variable} antialiased`}
+        suppressHydrationWarning
       >
         <ThemeProvider
           attribute="class"
