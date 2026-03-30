@@ -6,9 +6,8 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "dev": "npm run dev --prefix web",
+    "postinstall": "npm install --prefix web",
     "build": "npm run build --prefix web",
-    "start": "npm run start --prefix web",
-    "lint": "npm run lint --prefix web"
+    "start": "npm run start --prefix web"
   }
 }
