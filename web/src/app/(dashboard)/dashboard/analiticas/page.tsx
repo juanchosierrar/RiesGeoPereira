@@ -16,14 +16,16 @@ const SEVERITY_COLORS: Record<string, string> = {
 };
 
 const EVENT_COLORS: Record<string, string> = {
-    'DESLIZAMIENTO': '#8B5CF6', // Purple
-    'INUNDACION': '#3B82F6',   // Blue
-    'AVENIDA TORRENCIAL': '#0ea5e9', // Light blue
-    'VENDAVAL': '#06b6d4',      // Cyan
-    'INCENDIO': '#EF4444',      // Red
-    'SISMO': '#F97316',         // Orange
+    'DESLIZAMIENTO': '#8B5CF6',       // Purple
+    'INUNDACION': '#3B82F6',          // Blue
+    'VENDAVAL': '#06b6d4',            // Cyan
+    'INCENDIO': '#EF4444',            // Red
+    'INCENDIO FORESTAL': '#dc6803',   // Dark Orange
+    'INCENDIO ESTRUCTURAL': '#f59e0b',// Amber
     'COLAPSO ESTRUCTURAL': '#52525b', // Gray
-    'Desconocido': '#94A3B8'
+    'SISMO': '#F97316',               // Orange
+    'EXPLOSION': '#fbbf24',           // Yellow
+    'OTRO': '#94A3B8',                // Slate
 };
 
 export default function AnaliticasPage() {

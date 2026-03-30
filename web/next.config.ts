@@ -4,7 +4,8 @@ import createMDX from "@next/mdx";
 const nextConfig: NextConfig = {
   output: "standalone",
   pageExtensions: ["js", "jsx", "md", "mdx", "ts", "tsx"],
-  reactCompiler: true,
+  // reactCompiler was causing Turbopack panic with Tailwind v4 PostCSS
+  // reactCompiler: true,
 };
 
 const withMDX = createMDX({});

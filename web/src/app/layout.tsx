@@ -1,17 +1,11 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Outfit } from "next/font/google";
+// import { Inter, Outfit } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider"
 
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin"],
-});
-
-const outfit = Outfit({
-  variable: "--font-outfit",
-  subsets: ["latin"],
-});
+// Fake fonts for testing
+const inter = { variable: "--font-inter" };
+const outfit = { variable: "--font-outfit" };
 
 export const viewport: Viewport = {
   themeColor: [
@@ -62,3 +56,4 @@ export default function RootLayout({
     </html>
   );
 }
+

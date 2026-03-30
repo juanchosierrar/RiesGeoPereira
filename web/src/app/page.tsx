@@ -33,14 +33,7 @@ export default function Home() {
           </Link>
         </div>
 
-        {/* Mockup Image Placeholder */}
-        <div className="w-full max-w-5xl mt-16 aspect-video bg-card border rounded-xl shadow-2xl flex items-center justify-center relative overflow-hidden">
-          <div className="absolute inset-0 bg-grid-slate-100 [mask-image:linear-gradient(0deg,#fff,rgba(255,255,255,0.6))] dark:bg-grid-slate-700/25 dark:[mask-image:linear-gradient(0deg,rgba(255,255,255,0.1),rgba(255,255,255,0.5))]" />
-          <p className="text-muted-foreground font-medium relative z-10 flex flex-col items-center">
-            <span className="mb-2 text-2xl">🌍</span>
-            Previsualización del Mapa y Dashboard
-          </p>
-        </div>
+        {/* Hero Section placeholder removed by user request */}
       </main>
 
       {/* Footer */}

@@ -22,11 +22,15 @@ import type { EventoRiesgo, Gravedad } from '@/lib/insforge/types';
 import { insforgeRequest } from '@/lib/insforge/client';
 import type { FillLayerSpecification, LineLayerSpecification, CircleLayerSpecification, SourceSpecification } from 'maplibre-gl';
 import { FeatureCollection } from 'geojson';
+import { cn } from '@/lib/utils';
 import { MapSidebar } from './ui/map-sidebar';
 import { TopSearchBar } from './ui/top-search-bar';
 import { RightControlPanel } from './ui/right-control-panel';
 import { parseCsvFile, parseExcelFile } from '@/lib/geo-parser';
 import { AnalyticsPanel } from './panels/analytics-panel';
+import { NuevoRegistroDialog } from './NuevoRegistroDialog';
+import { Plus, Camera } from 'lucide-react';
+import { WEBCAMS, type WebcamFeature } from '@/lib/webcam-service';
 
 // --- Pluviosidad por altitud (proxy IDEAM/OMM para Risaralda) ---
 // Fuente: Atlas Climatológico IDEAM 2015
@@ -116,12 +120,12 @@ export default function MapCanvas() {
     const [isDragging, setIsDragging] = useState(false);
 
     // Layer visibility
-    const [eventosVisible, setEventosVisible] = useState(true);
+    const [eventosVisible, setEventosVisible] = useState(false);
     const [vulnerabilidadVisible, setVulnerabilidadVisible] = useState(false);
 
     // SGC Seismic data
     const [sismos, setSismos] = useState<SismoFeature[]>([]);
-    const [sismosVisible, setSismosVisible] = useState(true);
+    const [sismosVisible, setSismosVisible] = useState(false);
     const [sismosLoading, setSismosLoading] = useState(true);
     const [selectedSismo, setSelectedSismo] = useState<SismoFeature | null>(null);
 
@@ -142,8 +146,12 @@ export default function MapCanvas() {
     const [comunasVisible, setComunasVisible] = useState(false);
     const [potVisible, setPotVisible] = useState(false);
     const [perimetroVisible, setPerimetroVisible] = useState(false);
-    const [digerVisible, setDigerVisible] = useState(false);
+    const [digerVisible, setDigerVisible] = useState(true);
+    const [nuevosEventosVisible, setNuevosEventosVisible] = useState(false);
+    const [nuevosEventos, setNuevosEventos] = useState<any[]>([]);
     const [digerData, setDigerData] = useState<FeatureCollection | null>(null);
+    const [potData, setPotData] = useState<FeatureCollection | null>(null);
+    const [potLoading, setPotLoading] = useState(false);
 
 
     // RainViewer Radar layer
@@ -179,12 +187,28 @@ export default function MapCanvas() {
     const [ideamLayersVisible, setIdeamLayersVisible] = useState<Record<number, boolean>>({});
     const [ideamMapLoading, setIdeamMapLoading] = useState<Record<number, boolean>>({});
 
+    // Webcam State
+    const [webcamsVisible, setWebcamsVisible] = useState(true);
+    const [selectedWebcam, setSelectedWebcam] = useState<WebcamFeature | null>(null);
+
     const [selectedKmlFeature, setSelectedKmlFeature] = useState<{ properties: any; lngLat: { lng: number; lat: number }; layerName: string } | null>(null);
 
     // OpenWeatherMap Click State
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [owmClickedData, setOwmClickedData] = useState<{ lngLat: { lng: number; lat: number }; data: any } | null>(null);
     const [owmLoading, setOwmLoading] = useState(false);
+
+    // Registro de Eventos State
+    const [isRegistroOpen, setIsRegistroOpen] = useState(false);
+    const [isSelectingCoords, setIsSelectingCoords] = useState(false);
+    const [selectedCoords, setSelectedCoords] = useState<{ lat: number; lng: number } | undefined>();
+
+    // Listen for custom event from dashboard header
+    useEffect(() => {
+        const handleOpen = () => setIsRegistroOpen(true);
+        window.addEventListener('open-nuevo-registro', handleOpen);
+        return () => window.removeEventListener('open-nuevo-registro', handleOpen);
+    }, []);
 
     // Fetch earthquakes on mount
     useEffect(() => {
@@ -224,7 +248,7 @@ export default function MapCanvas() {
             .finally(() => setIdeamLoading(false));
 
         // Load DIGER Data from InsForge Backend
-        insforgeRequest<any[]>('/api/database/records/datos_diger?limit=1000')
+        insforgeRequest<any[]>('/api/database/records/datos_diger?limit=5000')
             .then(data => {
                 if (data && Array.isArray(data)) {
                     const geojson: FeatureCollection = {
@@ -242,7 +266,50 @@ export default function MapCanvas() {
                 }
             })
             .catch(err => console.error('InsForge DIGER fetch error:', err));
+
+        // Load POT Data (Amenaza Urbana) from InsForge with Fallback to local transformed GeoJSON
+        setPotLoading(true);
+        insforgeRequest<any[]>('/api/database/records/amenazas_pot?limit=100')
+            .then(data => {
+                if (data && Array.isArray(data) && data.length > 0) {
+                    const geojson: FeatureCollection = {
+                        type: 'FeatureCollection',
+                        features: data.map(record => {
+                            try {
+                                return {
+                                    ...JSON.parse(record.geometry_geojson),
+                                    properties: record
+                                };
+                            } catch (e) {
+                                return null;
+                            }
+                        }).filter(Boolean) as any
+                    };
+                    setPotData(geojson);
+                } else {
+                    // Fallback to local transformed file if Insforge is empty or missing table
+                    throw new Error('InsForge POT data empty, falling back...');
+                }
+            })
+            .catch(async (err) => {
+                console.warn('InsForge POT fetch fallback to local:', err.message);
+                try {
+                    const res = await fetch('/Geodata/pot_transformed.json');
+                    const json = await res.json();
+                    setPotData(json);
+                } catch (localErr) {
+                    console.error('Local POT fetch error:', localErr);
+                }
+            })
+            .finally(() => setPotLoading(false));
     }, []);
+
+    // Auto-activate Volcanic layer when RIESGOS section is selected
+    useEffect(() => {
+        if (activeSidebarSection === 'risk') {
+            setVolcanicVisible(true);
+        }
+    }, [activeSidebarSection]);
 
     // Effect to fetch IDEAM MapServer layers when toggled
     useEffect(() => {
@@ -422,12 +489,24 @@ export default function MapCanvas() {
                 attributionControl={false}
                 interactiveLayerIds={interactiveLayerIds}
                 onClick={e => {
+                    if (isSelectingCoords) {
+                        setSelectedCoords({ lat: e.lngLat.lat, lng: e.lngLat.lng });
+                        setIsSelectingCoords(false);
+                        setIsRegistroOpen(true);
+                        return;
+                    }
                     if (e.features && e.features.length > 0) {
                         const feature = e.features[0];
                         // Find the layer name
                         let layerName = 'Capa';
                         if (feature.layer.id === 'diger-points') {
                             layerName = 'Histórico DIGER';
+                        } else if (feature.layer.id === 'pot-fill') {
+                            layerName = 'Amenaza Urbana (POT)';
+                        } else if (feature.layer.id === 'barrios-fill') {
+                            layerName = 'Barrio';
+                        } else if (feature.layer.id === 'comunas-fill') {
+                            layerName = 'Comuna';
                         } else if (feature.layer.id.startsWith('ideam-')) {
                             const ideamId = parseInt(feature.layer.id.split('-')[1]);
                             layerName = IDEAM_LAYERS.find(l => l.id === ideamId)?.name || 'IDEAM';
@@ -628,11 +707,53 @@ export default function MapCanvas() {
                     );
                 })}
 
+                {/* Nuevos Eventos Markers */}
+                {nuevosEventosVisible && nuevosEventos.map((evt, idx) => {
+                    const color = GRAVEDAD_COLORS[evt.gravedad as Gravedad] || '#EF4444';
+                    const isCritical = evt.gravedad === 'Critica';
+                    return (
+                        <Marker
+                            key={`nuevo-${evt.id_registro}-${idx}`}
+                            longitude={evt.coordenadas.lng}
+                            latitude={evt.coordenadas.lat}
+                            anchor="center"
+                            onClick={(e) => {
+                                e.originalEvent.stopPropagation();
+                                setSelectedEvent({
+                                    ...evt,
+                                    id: evt.id_registro,
+                                    coordenadas_lat: evt.coordenadas.lat,
+                                    coordenadas_lng: evt.coordenadas.lng,
+                                    fecha_hora: evt.fecha,
+                                    estado_flujo: 'Nuevo Registro',
+                                    barrio: evt.entidad
+                                });
+                            }}
+                        >
+                            <div className="cursor-pointer group relative">
+                                <div
+                                    className={`w-8 h-8 rounded-full border-[3px] border-white transition-all duration-200 group-hover:scale-130 flex items-center justify-center shadow-lg ${isCritical ? 'scale-110' : ''}`}
+                                    style={{
+                                        backgroundColor: color,
+                                        boxShadow: `0 0 ${isCritical ? '20' : '12'}px ${color}A0, 0 4px 8px rgba(0,0,0,0.4)`,
+                                    }}
+                                >
+                                    <span className="text-[10px] font-bold text-white drop-shadow-md">N</span>
+                                </div>
+                                <div
+                                    className="absolute inset-0 w-8 h-8 rounded-full animate-ping opacity-40"
+                                    style={{ backgroundColor: color }}
+                                />
+                            </div>
+                        </Marker>
+                    );
+                })}
+
                 {/* OpenWeatherMap Raster Layers */}
                 {precipitationVisible && OPENWEATHER_API_KEY && (
                     <Source id="owm-precipitation" type="raster" tiles={[`https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=${OPENWEATHER_API_KEY}`]} tileSize={256}>
                         <Layer id="owm-precipitation-layer" type="raster" paint={{
-                            'raster-opacity': 0.5,
+                            'raster-opacity': 0.3,
                             'raster-saturation': 1.0,
                             'raster-contrast': 0.4,
                             'raster-brightness-min': 0.1,
@@ -647,7 +768,7 @@ export default function MapCanvas() {
                 {temperatureMapVisible && OPENWEATHER_API_KEY && (
                     <Source id="owm-temperature" type="raster" tiles={[`https://tile.openweathermap.org/map/temp_new/{z}/{x}/{y}.png?appid=${OPENWEATHER_API_KEY}`]} tileSize={256}>
                         <Layer id="owm-temperature-layer" type="raster" paint={{
-                            'raster-opacity': 0.5,
+                            'raster-opacity': 0.3,
                             'raster-saturation': 1.0,
                             'raster-contrast': 0.5,
                             'raster-brightness-min': 0.1,
@@ -881,12 +1002,15 @@ export default function MapCanvas() {
                                     ['get', 'evento'],
                                     'DESLIZAMIENTO', '#8B5CF6',
                                     'INUNDACION', '#3B82F6',
-                                    'AVENIDA TORRENCIAL', '#0ea5e9',
                                     'VENDAVAL', '#06b6d4',
                                     'INCENDIO', '#EF4444',
-                                    'SISMO', '#F97316',
+                                    'INCENDIO FORESTAL', '#dc6803',
+                                    'INCENDIO ESTRUCTURAL', '#f59e0b',
                                     'COLAPSO ESTRUCTURAL', '#52525B',
-                                    '#FBBF24' // default
+                                    'SISMO', '#F97316',
+                                    'EXPLOSION', '#FBBF24',
+                                    'OTRO', '#94A3B8',
+                                    '#94A3B8' // default
                                 ],
                                 'circle-stroke-width': 1.5,
                                 'circle-stroke-color': '#ffffff',
@@ -921,6 +1045,48 @@ export default function MapCanvas() {
                         </Source>
                     )
                 ))}
+                
+                {/* POT GeoJSON Layer (Urban Threat) */}
+                {potVisible && potData && (
+                    <Source id="pot-source" type="geojson" data={potData}>
+                        <Layer
+                            id="pot-fill"
+                            type="fill"
+                            paint={{
+                                'fill-color': [
+                                    'case',
+                                    ['any', 
+                                        ['in', 'Alta', ['get', 'Amenaza']], 
+                                        ['in', 'ALTA', ['get', 'Amenaza']],
+                                        ['in', 'alta', ['get', 'Amenaza']]
+                                    ], '#EF4444',
+                                    ['any', 
+                                        ['in', 'Media', ['get', 'Amenaza']], 
+                                        ['in', 'MEDIA', ['get', 'Amenaza']],
+                                        ['in', 'media', ['get', 'Amenaza']]
+                                    ], '#F97316',
+                                    ['any', 
+                                        ['in', 'Baja', ['get', 'Amenaza']], 
+                                        ['in', 'BAJA', ['get', 'Amenaza']],
+                                        ['in', 'baja', ['get', 'Amenaza']]
+                                    ], '#FBBF24',
+                                    ['in', 'Egoya', ['get', 'Amenaza']], '#3B82F6', // Special case for Egoya colector
+                                    '#94A3B8' // Default gray
+                                ],
+                                'fill-opacity': 0.45,
+                            } as FillLayerSpecification['paint']}
+                        />
+                        <Layer
+                            id="pot-line"
+                            type="line"
+                            paint={{
+                                'line-color': '#FFFFFF',
+                                'line-width': 1,
+                                'line-opacity': 0.3,
+                            } as LineLayerSpecification['paint']}
+                        />
+                    </Source>
+                )}
 
                 {/* SGC Earthquake Markers */}
                 {sismosVisible && sismos.map((s) => {
@@ -1300,7 +1466,101 @@ export default function MapCanvas() {
                         </Popup>
                     );
                 })()}
+
+                {/* Webcam Markers */}
+                {webcamsVisible && WEBCAMS.map(cam => (
+                    <Marker
+                        key={cam.id}
+                        longitude={cam.longitude}
+                        latitude={cam.latitude}
+                        anchor="bottom"
+                        onClick={e => {
+                            e.originalEvent.stopPropagation();
+                            setSelectedWebcam(cam);
+                        }}
+                    >
+                        <div className="group cursor-pointer">
+                            <div className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-500 rounded-full border-2 border-white animate-pulse" />
+                            <div className="p-1.5 bg-white rounded-full shadow-lg border-2 border-emerald-500 group-hover:bg-emerald-50 transition-colors">
+                                <Camera className="w-4 h-4 text-emerald-600" />
+                            </div>
+                        </div>
+                    </Marker>
+                ))}
+
+                {/* Webcam Popup */}
+                {selectedWebcam && (
+                    <Popup
+                        longitude={selectedWebcam.longitude}
+                        latitude={selectedWebcam.latitude}
+                        anchor="bottom"
+                        onClose={() => setSelectedWebcam(null)}
+                        closeButton={false}
+                        className="webcam-popup z-50"
+                        maxWidth="320px"
+                    >
+                        <div className="p-0 overflow-hidden rounded-xl bg-slate-900 border border-white/10 shadow-2xl">
+                            <div className="relative aspect-video bg-black flex items-center justify-center">
+                                <img 
+                                    src={selectedWebcam.imageUrl} 
+                                    alt={selectedWebcam.name}
+                                    className="w-full h-full object-cover"
+                                />
+                                <div className="absolute top-2 left-2 px-2 py-0.5 bg-red-600 text-white text-[9px] font-bold rounded flex items-center gap-1 uppercase tracking-tighter shadow-lg">
+                                    <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
+                                    EN VIVO (WorldCam)
+                                </div>
+                            </div>
+                            <div className="p-3 bg-slate-800/90 backdrop-blur-md">
+                                <h4 className="text-white text-xs font-bold truncate leading-tight mb-1">{selectedWebcam.name}</h4>
+                                <p className="text-white/60 text-[10px] leading-snug line-clamp-2 mb-2">{selectedWebcam.description}</p>
+                                <div className="flex items-center justify-between text-[9px] text-white/40 border-t border-white/5 pt-2">
+                                    <span>{selectedWebcam.latitude.toFixed(4)}°N, {selectedWebcam.longitude.toFixed(4)}°W</span>
+                                    <span className="flex items-center gap-1">
+                                        <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.5)]" />
+                                        ONLINE
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </Popup>
+                )}
+
+                {/* Marker for coordinate selection */}
+                {selectedCoords && (
+                    <Marker
+                        longitude={selectedCoords.lng}
+                        latitude={selectedCoords.lat}
+                        color="#EF4444"
+                        draggable
+                        onDragEnd={(e) => setSelectedCoords({ lat: e.lngLat.lat, lng: e.lngLat.lng })}
+                    />
+                )}
             </Map>
+
+            {/* Float Action Button - Removed and moved to header */}
+
+            <NuevoRegistroDialog 
+                isOpen={isRegistroOpen}
+                onClose={() => setIsRegistroOpen(false)}
+                onSubmit={(data) => {
+                    console.log('Nuevo Registro Guardado:', data);
+                    setAuditLoading(true);
+                    setTimeout(() => {
+                        setAuditLoading(false);
+                        // Agregar al estado de nuevos eventos
+                        setNuevosEventos(prev => [...prev, data]);
+                        setNuevosEventosVisible(true);
+                        alert('Registro guardado exitosamente en la capa de Nuevos Eventos');
+                    }, 1000);
+                }}
+                coords={selectedCoords}
+                onSelectOnMap={() => {
+                    setIsRegistroOpen(false);
+                    setIsSelectingCoords(true);
+                }}
+                isSelectingOnMap={isSelectingCoords}
+            />
 
             {/* SIATA UI Components */}
             <MapSidebar
@@ -1336,6 +1596,8 @@ export default function MapCanvas() {
                 potVisible={potVisible} togglePot={() => setPotVisible(!potVisible)}
                 perimetroVisible={perimetroVisible} togglePerimetro={() => setPerimetroVisible(!perimetroVisible)}
                 digerVisible={digerVisible} toggleDiger={() => setDigerVisible(!digerVisible)}
+                nuevosEventosVisible={nuevosEventosVisible} toggleNuevosEventos={() => setNuevosEventosVisible(!nuevosEventosVisible)}
+                webcamsVisible={webcamsVisible} toggleWebcams={() => setWebcamsVisible(!webcamsVisible)}
                 sismosLoading={sismosLoading}
                 usgsLoading={usgsLoading}
                 volcanicLoading={volcanicLoading}

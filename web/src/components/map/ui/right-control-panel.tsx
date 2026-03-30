@@ -14,7 +14,11 @@ import {
     Trash2,
     CloudRain,
     Thermometer,
-    Zap
+    Zap,
+    Flame,
+    Activity,
+    Shield,
+    Camera
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import TemperaturaWidget from '@/components/dashboard/temperatura-widget';
@@ -39,6 +43,8 @@ interface RightControlPanelProps {
     era5Visible: boolean; toggleEra5: () => void;
     vulnerabilidadVisible: boolean; toggleVulnerabilidad: () => void;
     ideamVisible: boolean; toggleIdeam: () => void;
+    nuevosEventosVisible: boolean; toggleNuevosEventos: () => void;
+    webcamsVisible: boolean; toggleWebcams: () => void;
     // Loading states
     sismosLoading: boolean;
     usgsLoading: boolean;
@@ -65,13 +71,15 @@ interface RightControlPanelProps {
 
 export function RightControlPanel(props: RightControlPanelProps & { children?: React.ReactNode }) {
     const [isOpen, setIsOpen] = useState(true);
-    const [activeTab, setActiveTab] = useState<'capas' | 'info' | 'analisis'>('capas');
+    const [activeTab, setActiveTab] = useState<'capas' | 'info' | 'analisis'>(() => {
+        if (props.activeSidebarSection === 'risk' || props.activeSidebarSection === 'weather' || props.activeSidebarSection === 'seismic' || props.activeSidebarSection === 'monitoring') return 'info';
+        if (props.activeSidebarSection === 'analytics') return 'analisis';
+        return 'capas';
+    });
 
-    const [prevSidebarSection, setPrevSidebarSection] = useState(props.activeSidebarSection);
-
-    if (props.activeSidebarSection !== prevSidebarSection) {
-        setPrevSidebarSection(props.activeSidebarSection);
-        if (props.activeSidebarSection === 'weather') {
+    useEffect(() => {
+        if (props.activeSidebarSection === 'weather' || props.activeSidebarSection === 'risk' || 
+            props.activeSidebarSection === 'seismic' || props.activeSidebarSection === 'monitoring') {
             setActiveTab('info');
             setIsOpen(true);
         } else if (props.activeSidebarSection === 'layers') {
@@ -81,7 +89,7 @@ export function RightControlPanel(props: RightControlPanelProps & { children?: R
             setActiveTab('analisis');
             setIsOpen(true);
         }
-    }
+    }, [props.activeSidebarSection]);
 
     if (!isOpen) {
         return (
@@ -95,14 +103,29 @@ export function RightControlPanel(props: RightControlPanelProps & { children?: R
     }
 
     const isWeatherSection = props.activeSidebarSection === 'weather';
+    const isRiskSection = props.activeSidebarSection === 'risk';
+    const isSeismicSection = props.activeSidebarSection === 'seismic';
+    const isMonitoringSection = props.activeSidebarSection === 'monitoring';
 
     return (
         <div className="absolute right-4 top-20 bottom-24 w-[320px] siata-glass rounded-2xl flex flex-col z-50 border border-white/10 overflow-hidden shadow-2xl">
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-white/10">
                 <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                    {activeTab === 'capas' ? <Layers className="w-4 h-4" /> : (isWeatherSection ? <CloudRain className="w-4 h-4" /> : <Info className="w-4 h-4" />)}
-                    {activeTab === 'capas' ? 'Capas de Información' : (isWeatherSection ? 'Panel de Clima' : 'Información y Leyendas')}
+                    {activeTab === 'capas' ? (
+                        <Layers className="w-4 h-4" />
+                    ) : isWeatherSection ? (
+                        <CloudRain className="w-4 h-4" />
+                    ) : isSeismicSection ? (
+                        <Activity className="w-4 h-4 text-purple-400" />
+                    ) : isMonitoringSection ? (
+                        <Shield className="w-4 h-4 text-emerald-400" />
+                    ) : isRiskSection ? (
+                        <AlertTriangle className="w-4 h-4 text-red-400" />
+                    ) : (
+                        <Info className="w-4 h-4" />
+                    )}
+                    {activeTab === 'capas' ? 'Capas de Información' : isWeatherSection ? 'Panel de Clima' : isSeismicSection ? 'Panel de Sismos' : isMonitoringSection ? 'Panel de Monitoreo' : isRiskSection ? 'Panel de Riesgos' : 'Información y Leyendas'}
                 </h3>
                 <button onClick={() => setIsOpen(false)} className="p-1 hover:bg-white/10 rounded-full transition-colors">
                     <ChevronRight className="w-5 h-5 text-white" />
@@ -121,7 +144,7 @@ export function RightControlPanel(props: RightControlPanelProps & { children?: R
                     onClick={() => setActiveTab('info')}
                     className={cn("flex-1 siata-tab font-inter uppercase tracking-tighter", activeTab === 'info' ? "active" : "inactive")}
                 >
-                    {isWeatherSection ? 'Clima' : 'Info'}
+                    {isWeatherSection ? 'Clima' : isSeismicSection ? 'Sismos' : isMonitoringSection ? 'Monitor' : isRiskSection ? 'Riesgos' : 'Info'}
                 </button>
                 <button
                     onClick={() => setActiveTab('analisis')}
@@ -212,6 +235,13 @@ export function RightControlPanel(props: RightControlPanelProps & { children?: R
                                     onClick={props.toggleEventos}
                                 />
                                 <LayerToggle
+                                    label="Nuevos Eventos"
+                                    color="#FF4444"
+                                    active={props.nuevosEventosVisible}
+                                    onClick={props.toggleNuevosEventos}
+                                    icon="✨"
+                                />
+                                <LayerToggle
                                     label="Sismos SGC"
                                     color="#6D28D9"
                                     active={props.sismosVisible}
@@ -241,6 +271,14 @@ export function RightControlPanel(props: RightControlPanelProps & { children?: R
                                     color="#FBBF24"
                                     active={props.digerVisible}
                                     onClick={props.toggleDiger}
+                                />
+                                <LayerToggle
+                                    label="Cámaras Web"
+                                    lucideIcon={Camera}
+                                    lucideColor="#10B981"
+                                    active={props.webcamsVisible}
+                                    onClick={props.toggleWebcams}
+                                    icon="🎥"
                                 />
                             </LayerCategory>
 
@@ -286,6 +324,13 @@ export function RightControlPanel(props: RightControlPanelProps & { children?: R
                                     onClick={props.toggleTemperatureMap}
                                 />
                                 <LayerToggle
+                                    label="Mapa de Precipitación"
+                                    lucideIcon={CloudRain}
+                                    lucideColor="#3B82F6"
+                                    active={props.precipitationVisible}
+                                    onClick={props.togglePrecipitation}
+                                />
+                                <LayerToggle
                                     label="Open-Meteo"
                                     icon="📊"
                                     active={props.era5Visible}
@@ -315,6 +360,84 @@ export function RightControlPanel(props: RightControlPanelProps & { children?: R
                     </>
                 ) : activeTab === 'info' ? (
                     <div className="space-y-6">
+                        {isRiskSection && (
+                            <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-500">
+                                <div className="space-y-3 p-3 rounded-2xl bg-white/5 border border-white/10">
+                                    <span className="text-[10px] font-bold text-red-400 uppercase tracking-widest block mb-2">Amenazas Geológicas</span>
+                                    <LayerToggle
+                                        label="Amenaza Volcánica"
+                                        color="#EF4444"
+                                        shape="diamond"
+                                        active={props.volcanicVisible}
+                                        onClick={props.toggleVolcanic}
+                                        loading={props.volcanicLoading}
+                                        count={props.volcanicCount}
+                                    />
+                                    <LayerToggle
+                                        label="Sismos SGC"
+                                        color="#6D28D9"
+                                        active={props.sismosVisible}
+                                        onClick={props.toggleSismos}
+                                        loading={props.sismosLoading}
+                                        count={props.sismosCount}
+                                    />
+                                    <LayerToggle
+                                        label="USGS Histórico"
+                                        color="#F97316"
+                                        active={props.usgsVisible}
+                                        onClick={props.toggleUsgs}
+                                        loading={props.usgsLoading}
+                                        count={props.usgsCount}
+                                    />
+                                </div>
+                                <div className="space-y-3 p-3 rounded-2xl bg-white/5 border border-white/10">
+                                    <span className="text-[10px] font-bold text-amber-400 uppercase tracking-widest block mb-2">Eventos & Registros</span>
+                                    <LayerToggle
+                                        label="Eventos de Riesgo"
+                                        color="#EF4444"
+                                        active={props.eventosVisible}
+                                        onClick={props.toggleEventos}
+                                    />
+                                    <LayerToggle
+                                        label="Nuevos Eventos"
+                                        color="#FF4444"
+                                        active={props.nuevosEventosVisible}
+                                        onClick={props.toggleNuevosEventos}
+                                        icon="✨"
+                                    />
+                                    <LayerToggle
+                                        label="Histórico DIGER"
+                                        color="#FBBF24"
+                                        active={props.digerVisible}
+                                        onClick={props.toggleDiger}
+                                    />
+                                    <LayerToggle
+                                        label="Deslizamientos IDEAM"
+                                        color="#EF4444"
+                                        active={props.ideamLayersVisible[2]}
+                                        onClick={() => props.toggleIdeamLayer(2)}
+                                        loading={props.ideamMapLoading[2]}
+                                    />
+                                    <LayerToggle
+                                        label="Inundación IDEAM"
+                                        color="#06B6D4"
+                                        active={props.ideamLayersVisible[1]}
+                                        onClick={() => props.toggleIdeamLayer(1)}
+                                        loading={props.ideamMapLoading[1]}
+                                    />
+                                </div>
+                                <div className="p-3 rounded-2xl bg-red-500/10 border border-red-500/20">
+                                    <span className="text-[10px] font-bold text-red-400 uppercase tracking-widest block mb-2">Leyenda de Riesgos</span>
+                                    <div className="space-y-1.5">
+                                        <div className="flex items-center gap-2"><div className="w-2.5 h-2.5 rounded-full bg-red-500" /><span className="text-[10px] text-white/70">Riesgo Crítico / Volcánico</span></div>
+                                        <div className="flex items-center gap-2"><div className="w-2.5 h-2.5 rounded-full bg-orange-500" /><span className="text-[10px] text-white/70">Riesgo Alto (USGS)</span></div>
+                                        <div className="flex items-center gap-2"><div className="w-2.5 h-2.5 rounded-full bg-yellow-400" /><span className="text-[10px] text-white/70">Histórico DIGER</span></div>
+                                        <div className="flex items-center gap-2"><div className="w-2.5 h-2.5 rounded-full bg-violet-600" /><span className="text-[10px] text-white/70">Sismos SGC</span></div>
+                                    </div>
+                                </div>
+                                <div className="pt-2 border-t border-white/10" />
+                            </div>
+                        )}
                         {isWeatherSection && (
                             <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-500">
                                 <div className="space-y-3 p-3 rounded-2xl bg-white/5 border border-white/10">
@@ -326,13 +449,6 @@ export function RightControlPanel(props: RightControlPanelProps & { children?: R
                                         active={props.radarVisible}
                                         onClick={props.toggleRadar}
                                         loading={props.radarLoading}
-                                    />
-                                    <LayerToggle
-                                        label="Monitor SATMA"
-                                        lucideIcon={Zap}
-                                        lucideColor="#FBBF24"
-                                        active={true}
-                                        onClick={() => { }} // Widget constant
                                     />
                                     <LayerToggle
                                         label="Mapa de Temperatura"
@@ -359,7 +475,85 @@ export function RightControlPanel(props: RightControlPanelProps & { children?: R
                                 </div>
 
                                 <TemperaturaWidget />
+                                <div className="pt-4 border-t border-white/10" />
+                            </div>
+                        )}
+                        {isSeismicSection && (
+                            <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-500">
+                                <div className="space-y-3 p-3 rounded-2xl bg-white/5 border border-white/10">
+                                    <span className="text-[10px] font-bold text-purple-400 uppercase tracking-widest block mb-2">Monitoreo Sísmico</span>
+                                    <LayerToggle
+                                        label="Sismos SGC"
+                                        color="#6D28D9"
+                                        active={props.sismosVisible}
+                                        onClick={props.toggleSismos}
+                                        loading={props.sismosLoading}
+                                        count={props.sismosCount}
+                                    />
+                                    <LayerToggle
+                                        label="USGS Histórico"
+                                        color="#F97316"
+                                        active={props.usgsVisible}
+                                        onClick={props.toggleUsgs}
+                                        loading={props.usgsLoading}
+                                        count={props.usgsCount}
+                                    />
+                                </div>
+                                <div className="p-3 rounded-2xl bg-purple-500/10 border border-purple-500/20">
+                                    <span className="text-[10px] font-bold text-purple-400 uppercase tracking-widest block mb-2">Leyenda Sísmica</span>
+                                    <div className="space-y-1.5">
+                                        <div className="flex items-center gap-2"><div className="w-2.5 h-2.5 rounded-full bg-violet-600" /><span className="text-[10px] text-white/70">Sismos SGC (Recientes)</span></div>
+                                        <div className="flex items-center gap-2"><div className="w-2.5 h-2.5 rounded-full bg-orange-500" /><span className="text-[10px] text-white/70">Histórico USGS (Global)</span></div>
+                                    </div>
+                                </div>
+                                <div className="pt-4 border-t border-white/10" />
+                            </div>
+                        )}
+                        {isMonitoringSection && (
+                            <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-500">
+                                <div className="space-y-3 p-3 rounded-2xl bg-white/5 border border-white/10">
+                                    <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest block mb-2">Sistemas de Alerta</span>
+                                    <LayerToggle
+                                        label="Monitor SATMA"
+                                        lucideIcon={Zap}
+                                        lucideColor="#FBBF24"
+                                        active={true}
+                                        onClick={() => { }} 
+                                    />
+                                    <LayerToggle
+                                        label="Vulnerabilidad"
+                                        lucideIcon={Shield}
+                                        lucideColor="#10B981"
+                                        active={props.vulnerabilidadVisible}
+                                        onClick={props.toggleVulnerabilidad}
+                                    />
+                                    <LayerToggle
+                                        label="Estaciones IDEAM"
+                                        color="#10B981"
+                                        active={props.ideamVisible}
+                                        onClick={props.toggleIdeam}
+                                        loading={props.ideamLoading}
+                                        count={props.ideamCount}
+                                    />
+                                    <LayerToggle
+                                        label="Cámaras Web (Nevado)"
+                                        lucideIcon={Camera}
+                                        lucideColor="#10B981"
+                                        active={props.webcamsVisible}
+                                        onClick={props.toggleWebcams}
+                                    />
+                                </div>
+
                                 <SatmaMonitor />
+                                
+                                <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
+                                    <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest block mb-1">Estado del Sistema</span>
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                        <span className="text-[11px] text-white">Sensores Operativos</span>
+                                    </div>
+                                </div>
+                                
                                 <div className="pt-4 border-t border-white/10" />
                             </div>
                         )}
@@ -377,6 +571,10 @@ export function RightControlPanel(props: RightControlPanelProps & { children?: R
                                 <LegendItem color="#F97316" label="Riesgo Alto" />
                                 <LegendItem color="#FBBF24" label="Históricos DIGER / Riesgo Medio" />
                                 <LegendItem color="#6D28D9" label="Sismos SGC" />
+                                <LegendItem color="#EF4444" label="POT: Amenaza Alta" />
+                                <LegendItem color="#F97316" label="POT: Amenaza Media" />
+                                <LegendItem color="#FBBF24" label="POT: Amenaza Baja" />
+                                <LegendItem color="#3B82F6" label="POT: Zona de Estudio" />
                                 <LegendItem color="#3B82F6" label="Cuencas SZH (IDEAM)" />
                                 <LegendItem color="#06B6D4" label="Inundación (IDEAM)" />
                                 <LegendItem color="#10B981" label="Estación IDEAM Activa" />
