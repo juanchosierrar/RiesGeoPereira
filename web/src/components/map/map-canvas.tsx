@@ -116,12 +116,12 @@ export default function MapCanvas() {
     const [isDragging, setIsDragging] = useState(false);
 
     // Layer visibility
-    const [eventosVisible, setEventosVisible] = useState(true);
+    const [eventosVisible, setEventosVisible] = useState(false);
     const [vulnerabilidadVisible, setVulnerabilidadVisible] = useState(false);
 
     // SGC Seismic data
     const [sismos, setSismos] = useState<SismoFeature[]>([]);
-    const [sismosVisible, setSismosVisible] = useState(true);
+    const [sismosVisible, setSismosVisible] = useState(false);
     const [sismosLoading, setSismosLoading] = useState(true);
     const [selectedSismo, setSelectedSismo] = useState<SismoFeature | null>(null);
 
@@ -142,7 +142,7 @@ export default function MapCanvas() {
     const [comunasVisible, setComunasVisible] = useState(false);
     const [potVisible, setPotVisible] = useState(false);
     const [perimetroVisible, setPerimetroVisible] = useState(false);
-    const [digerVisible, setDigerVisible] = useState(false);
+    const [digerVisible, setDigerVisible] = useState(true);
     const [digerData, setDigerData] = useState<FeatureCollection | null>(null);
 
 
