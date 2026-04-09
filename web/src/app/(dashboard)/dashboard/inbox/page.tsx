@@ -5,6 +5,7 @@ import { MOCK_EVENTOS, GRAVEDAD_COLORS, ESTADO_LABELS } from '@/lib/mock-data';
 import { AlertTriangle, Droplets, Flame, Wind, Activity, Mountain, Search, Filter, ChevronRight, X, MapPin, Calendar, Clock, CheckCircle2 } from 'lucide-react';
 import type { Gravedad, EstadoFlujo, EventoRiesgo } from '@/lib/insforge/types';
 import { DashboardNav } from "@/components/layout/header/components/dashboard-nav";
+import { RegistrarEventoDialog } from "@/components/dashboard/registrar-evento-dialog";
 
 const ICON_MAP: Record<string, React.ElementType> = {
     Deslizamiento: Mountain,
@@ -48,7 +49,10 @@ export default function InboxPage() {
 
                 <DashboardNav />
 
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
+                <div className="flex items-center gap-2">
+                    <RegistrarEventoDialog />
+
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
                     {(['Critica', 'Alta', 'Media', 'Baja'] as Gravedad[]).map(g => (
                         <button
                             key={g}
@@ -63,6 +67,7 @@ export default function InboxPage() {
                             {g} ({counts[g]})
                         </button>
                     ))}
+                </div>
                 </div>
             </header>
 

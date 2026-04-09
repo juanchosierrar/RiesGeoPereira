@@ -1,0 +1,10 @@
+.git
+.venv
+__pycache__
+.env        
+.DS_Store
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.github

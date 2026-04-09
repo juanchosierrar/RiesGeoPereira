@@ -3,13 +3,14 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Map, Inbox, BarChart3, Shield, LogOut } from "lucide-react";
+import { Map, Inbox, BarChart3, Shield, LogOut, Share2 } from "lucide-react";
 import { logout } from "@/lib/insforge/auth";
 
 const NAV_ITEMS = [
     { href: "/dashboard", label: "Mapa Interactivo", icon: Map },
     { href: "/dashboard/inbox", label: "Inbox Incidentes", icon: Inbox },
     { href: "/dashboard/analiticas", label: "Analíticas Geo", icon: BarChart3 },
+    { href: "/dashboard/analiticas-sociales", label: "Analítica Redes Sociales", icon: Share2 },
     { href: "/dashboard/observatorio", label: "Observatorio GRD", icon: Shield },
 ];
 

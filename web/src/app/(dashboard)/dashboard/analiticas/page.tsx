@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
-import { insforgeRequest } from '@/lib/insforge/client';
+import { insforgeRequest, insforgeFetchAll } from '@/lib/insforge/client';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
 import QualityRadarChart from '@/components/dashboard/quality-radar';
 import { TrendingUp, AlertTriangle, MapPin, Activity } from 'lucide-react';
 import { DashboardNav } from "@/components/layout/header/components/dashboard-nav";
+import { RegistrarEventoDialog } from "@/components/dashboard/registrar-evento-dialog";
 
 const COLORS = ['#1B365D', '#F57C00', '#D32F2F', '#2E7D32', '#FBC02D', '#7B1FA2'];
 const SEVERITY_COLORS: Record<string, string> = {
@@ -33,8 +34,8 @@ export default function AnaliticasPage() {
     useEffect(() => {
         async function fetchData() {
             try {
-                // Fetching historical DIGER data points
-                const data = await insforgeRequest('/api/database/records/datos_diger?limit=5000');
+                // Fetching ALL historical DIGER data points (with automatic pagination)
+                const data = await insforgeFetchAll<any>('/api/database/records/datos_diger');
                 if (data && Array.isArray(data)) {
                     setEvents(data);
                 }
@@ -159,8 +160,12 @@ export default function AnaliticasPage() {
 
                 <DashboardNav />
 
-                <div className="hidden md:block text-xs font-inter font-medium text-primary px-3 py-1 bg-primary/10 border border-primary/20 rounded-full">
-                    {isLoading ? 'Cargando datos...' : 'Datos Históricos Sincronizados'}
+                <div className="flex items-center gap-3">
+                    <RegistrarEventoDialog />
+
+                    <div className="hidden md:block text-xs font-inter font-medium text-primary px-3 py-1 bg-primary/10 border border-primary/20 rounded-full">
+                        {isLoading ? 'Cargando datos...' : 'Datos Históricos Sincronizados'}
+                    </div>
                 </div>
             </header>
 

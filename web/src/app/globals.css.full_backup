@@ -1,0 +1,311 @@
+@import "tailwindcss";
+
+@source "../components";
+@source "../app";
+@source "../lib";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ============================================
+   GRD SaaS — Vivid Risk Management Palette
+   Modern, high-energy, institutional 2026
+   ============================================ */
+
+:root {
+  /* Core Surface */
+  --background: #F0F3F8;
+  --foreground: #0D1B2A;
+  --card: #FFFFFF;
+  --card-foreground: #0D1B2A;
+  --popover: #FFFFFF;
+  --popover-foreground: #0D1B2A;
+
+  /* Primary — Deep Ocean Blue (Authority, Trust) */
+  --primary: #0A3D62;
+  --primary-foreground: #FFFFFF;
+
+  /* Secondary — Warm Slate */
+  --secondary: #E8ECF1;
+  --secondary-foreground: #1B2838;
+
+  /* Accent — Vivid Emerald (Geo/Nature) */
+  --accent: #10B981;
+  --accent-foreground: #FFFFFF;
+
+  /* Semantic */
+  --muted: #E2E8F0;
+  --muted-foreground: #64748B;
+  --border: #CBD5E1;
+  --input: #E2E8F0;
+  --ring: #0A3D62;
+
+  /* Risk Severity — Vivid & Unmistakable */
+  --severity-critical: #EF4444;
+  --severity-high: #F97316;
+  --severity-medium: #FBBF24;
+  --severity-low: #10B981;
+
+  /* Seismic — Distinct from risk (Indigo/Cyan family) */
+  --seismic-extreme: #4C1D95;
+  --seismic-high: #6D28D9;
+  --seismic-medium: #0EA5E9;
+  --seismic-low: #06B6D4;
+
+  /* Status Colors */
+  --success: #10B981;
+  --success-foreground: #FFFFFF;
+  --warning: #F97316;
+  --warning-foreground: #FFFFFF;
+  --destructive: #EF4444;
+  --destructive-foreground: #FFFFFF;
+  --info: #3B82F6;
+  --info-foreground: #FFFFFF;
+
+  /* Map Panel Gradients */
+  --panel-gradient: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(240, 243, 248, 0.92));
+  --panel-border: rgba(203, 213, 225, 0.6);
+  --panel-shadow: 0 4px 24px rgba(13, 27, 42, 0.08), 0 1px 3px rgba(13, 27, 42, 0.04);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-outfit);
+  --animate-skeleton: skeleton 2s -1s infinite linear;
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning: var(--warning);
+  --color-success-foreground: var(--success-foreground);
+  --color-success: var(--success);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-ring: var(--ring);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-input: var(--input);
+  --color-info-foreground: var(--info-foreground);
+  --color-info: var(--info);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive: var(--destructive);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-border: var(--border);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+
+  /* Severity tokens */
+  --color-severity-critical: var(--severity-critical);
+  --color-severity-high: var(--severity-high);
+  --color-severity-medium: var(--severity-medium);
+  --color-severity-low: var(--severity-low);
+
+  @keyframes skeleton {
+    to {
+      background-position: -200% 0;
+    }
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Dark mode */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0B1120;
+    --foreground: #F1F5F9;
+    --card: #1A2332;
+    --card-foreground: #F1F5F9;
+    --popover: #1A2332;
+    --popover-foreground: #F1F5F9;
+    --primary: #3B82F6;
+    --secondary: #1E293B;
+    --secondary-foreground: #E2E8F0;
+    --muted: #1E293B;
+    --muted-foreground: #94A3B8;
+    --border: rgba(255, 255, 255, 0.1);
+    --input: rgba(255, 255, 255, 0.08);
+    --accent: #34D399;
+    --panel-gradient: linear-gradient(135deg, rgba(26, 35, 50, 0.95), rgba(11, 17, 32, 0.92));
+    --panel-border: rgba(255, 255, 255, 0.08);
+    --panel-shadow: 0 4px 24px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.2);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* === Map Panel System === */
+.map-panel {
+  background: var(--panel-gradient);
+  border: 1px solid var(--panel-border);
+  box-shadow: var(--panel-shadow);
+  backdrop-filter: blur(20px) saturate(1.4);
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.map-panel-compact {
+  background: var(--panel-gradient);
+  border: 1px solid var(--panel-border);
+  box-shadow: var(--panel-shadow);
+  backdrop-filter: blur(16px) saturate(1.3);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+/* Severity badges */
+.badge-critical {
+  background: linear-gradient(135deg, #EF4444, #DC2626);
+  color: white;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.badge-high {
+  background: linear-gradient(135deg, #F97316, #EA580C);
+  color: white;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.badge-medium {
+  background: linear-gradient(135deg, #FBBF24, #F59E0B);
+  color: #1B2838;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.badge-low {
+  background: linear-gradient(135deg, #10B981, #059669);
+  color: white;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+/* Seismic badge */
+.badge-seismic {
+  background: linear-gradient(135deg, #6D28D9, #4C1D95);
+  color: white;
+  font-weight: 700;
+}
+
+/* Modern toggle switch */
+.toggle-layer {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  border-radius: 10px;
+  background: #CBD5E1;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.toggle-layer.active {
+  background: linear-gradient(135deg, #0A3D62, #1E5F8A);
+}
+
+.toggle-layer::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: transform 0.2s ease;
+}
+
+.toggle-layer.active::after {
+  transform: translateX(16px);
+}
+
+/* Pulse animation for critical markers */
+@keyframes pulse-ring {
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+
+  50% {
+    transform: scale(1.8);
+    opacity: 0;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 0;
+  }
+}
+
+.marker-pulse::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  background: inherit;
+  animation: pulse-ring 2s ease-in-out infinite;
+}
+
+/* === SIATA Styling System === */
+.siata-glass {
+  background: rgba(15, 23, 42, 0.9);
+  backdrop-filter: blur(12px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
+
+.siata-sidebar-item {
+  @apply flex flex-col items-center justify-center gap-1 w-full p-3 transition-all duration-200 cursor-pointer border-b border-white/5 last:border-b-0 hover:bg-white/10;
+}
+
+.siata-sidebar-item.active {
+  @apply bg-primary/40 border-l-4 border-l-primary;
+}
+
+.siata-tab {
+  @apply px-4 py-2 text-xs font-bold uppercase tracking-wider transition-all duration-200 border-b-2;
+}
+
+.siata-tab.active {
+  @apply border-primary text-primary bg-primary/5;
+}
+
+.siata-tab.inactive {
+  @apply border-transparent text-muted-foreground hover:text-foreground hover:bg-white/5;
+}
+
+/* Scrollbar styling for SIATA panels */
+.siata-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.siata-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.siata-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+}
+
+.siata-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}

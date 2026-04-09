@@ -7,7 +7,8 @@ import {
     Shield,
     Info,
     Settings,
-    AlertTriangle
+    AlertTriangle,
+    Share2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { usePathname } from 'next/navigation';
@@ -26,6 +27,7 @@ const SIDEBAR_ITEMS = [
     { id: 'layers', icon: Layers, label: 'Capas', color: 'text-amber-500', href: '/dashboard' },
     { id: 'inbox', icon: AlertTriangle, label: 'Incidentes', color: 'text-rose-400', href: '/dashboard/inbox' },
     { id: 'analytics', icon: Activity, label: 'Analíticas', color: 'text-cyan-400', href: '/dashboard' },
+    { id: 'social', icon: Share2, label: 'Redes', color: 'text-sky-400', href: '/dashboard' },
 ];
 
 export function MapSidebar({ activeSection, onSectionChange }: MapSidebarProps) {

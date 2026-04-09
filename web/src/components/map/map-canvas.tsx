@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import Map, { NavigationControl, FullscreenControl, GeolocateControl, Marker, Popup, Source, Layer, MapRef } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { Layers, Compass, ActivitySquare, BarChart3, AlertTriangle, Upload, X, Eye, EyeOff, FileUp, Trash2, Activity, ChevronRight, ChevronLeft, CloudRain, ExternalLink, Wind, Thermometer } from 'lucide-react';
@@ -18,8 +18,9 @@ import { getLatestRadarUrl } from '@/lib/rainviewer-service';
 import { fetchEra5Data, type Era5Summary } from '@/lib/meteo-service';
 import { fetchIdeamStations, type IdeamFeature, fetchIdeamLayer, IDEAM_LAYERS } from '@/lib/ideam-service';
 import { calculateBBox } from '@/lib/geo-utils';
+import { fetchPereiraBoundaries, fetchUrbanPerimeter } from '@/lib/osm-service';
 import type { EventoRiesgo, Gravedad } from '@/lib/insforge/types';
-import { insforgeRequest } from '@/lib/insforge/client';
+import { insforgeRequest, insforgeFetchAll } from '@/lib/insforge/client';
 import type { FillLayerSpecification, LineLayerSpecification, CircleLayerSpecification, SourceSpecification } from 'maplibre-gl';
 import { FeatureCollection } from 'geojson';
 import { MapSidebar } from './ui/map-sidebar';
@@ -27,6 +28,8 @@ import { TopSearchBar } from './ui/top-search-bar';
 import { RightControlPanel } from './ui/right-control-panel';
 import { parseCsvFile, parseExcelFile } from '@/lib/geo-parser';
 import { AnalyticsPanel } from './panels/analytics-panel';
+import { getSocialPosts, getHashtagPosts, type SocialPost, type HashtagPost } from '@/lib/social-service';
+import { MessageCircle, Hash } from 'lucide-react';
 
 // --- Pluviosidad por altitud (proxy IDEAM/OMM para Risaralda) ---
 // Fuente: Atlas Climatológico IDEAM 2015
@@ -138,12 +141,59 @@ export default function MapCanvas() {
     const [volcanicLoading, setVolcanicLoading] = useState(true);
 
     // Municipal layers (Barrios, Comunas, POT, Perímetro Urbano)
-    const [barriosVisible, setBarriosVisible] = useState(false);
     const [comunasVisible, setComunasVisible] = useState(false);
-    const [potVisible, setPotVisible] = useState(false);
+    const [comunasData, setComunasData] = useState<FeatureCollection | null>(null);
+    const [comunasLoading, setComunasLoading] = useState(false);
+
+    const [barriosVisible, setBarriosVisible] = useState(false);
+    const [barriosData, setBarriosData] = useState<FeatureCollection | null>(null);
+    const [barriosLoading, setBarriosLoading] = useState(false);
+
     const [perimetroVisible, setPerimetroVisible] = useState(false);
-    const [digerVisible, setDigerVisible] = useState(true);
+    const [perimetroData, setPerimetroData] = useState<FeatureCollection | null>(null);
+    const [perimetroLoading, setPerimetroLoading] = useState(false);
+
+    const [amenazaVisible, setAmenazaVisible] = useState(false);
+    const [amenazaData, setAmenazaData] = useState<FeatureCollection | null>(null);
+    const [amenazaLoading, setAmenazaLoading] = useState(false);
+
+    const [microzonificacionVisible, setMicrozonificacionVisible] = useState(false);
+    const [microzonificacionData, setMicrozonificacionData] = useState<FeatureCollection | null>(null);
+    const [microzonificacionLoading, setMicrozonificacionLoading] = useState(false);
+
+    const [simulacion1999Visible, setSimulacion1999Visible] = useState(false);
+    const [simulacion1999Data, setSimulacion1999Data] = useState<FeatureCollection | null>(null);
+    const [simulacion1999Loading, setSimulacion1999Loading] = useState(false);
+
+    const [simulacion1961Visible, setSimulacion1961Visible] = useState(false);
+    const [simulacion1961Data, setSimulacion1961Data] = useState<FeatureCollection | null>(null);
+    const [simulacion1961Loading, setSimulacion1961Loading] = useState(false);
+
+    const [simulacionCustomVisible, setSimulacionCustomVisible] = useState(false);
+    const [simulacionCustomMag, setSimulacionCustomMag] = useState<number>(6.0);
+    const [simulacionCustomProf, setSimulacionCustomProf] = useState<number>(30);
+    const [simulacionCustomDist, setSimulacionCustomDist] = useState<number>(10);
+
+    const [potVisible, setPotVisible] = useState(false);
+    const [digerVisible, setDigerVisible] = useState(false);
     const [digerData, setDigerData] = useState<FeatureCollection | null>(null);
+
+    // New persistent reports (Real-time)
+    const [reportesDigerVisible, setReportesDigerVisible] = useState(false);
+    const [reportesDigerData, setReportesDigerData] = useState<FeatureCollection | null>(null);
+    const [reportesDigerLoading, setReportesDigerLoading] = useState(false);
+    const [selectedReporteDiger, setSelectedReporteDiger] = useState<any>(null);
+
+    // Social Media Analytics
+    const [socialVisible, setSocialVisible] = useState(false);
+    const [socialPosts, setSocialPosts] = useState<SocialPost[]>([]);
+    const [selectedSocialPost, setSelectedSocialPost] = useState<SocialPost | null>(null);
+
+    // Hashtag #EmergenciaPereira layer
+    const [hashtagVisible, setHashtagVisible] = useState(false);
+    const [hashtagPosts, setHashtagPosts] = useState<HashtagPost[]>([]);
+    const [hashtagLoading, setHashtagLoading] = useState(false);
+    const [selectedHashtagPost, setSelectedHashtagPost] = useState<HashtagPost | null>(null);
 
 
     // RainViewer Radar layer
@@ -162,6 +212,16 @@ export default function MapCanvas() {
     const [ideamVisible, setIdeamVisible] = useState(false);
     const [ideamLoading, setIdeamLoading] = useState(true);
     const [selectedIdeam, setSelectedIdeam] = useState<IdeamFeature | null>(null);
+    
+    // AWS IDEAM Radar
+    const [ideamRadarVisible, setIdeamRadarVisible] = useState(false);
+    const [ideamRadarData, setIdeamRadarData] = useState<{ image_base64?: string; bounds: any } | null>(null);
+    const [ideamRadarLoading, setIdeamRadarLoading] = useState(false);
+
+    // Radar SIATA (Santa Elena)
+    const [siataRadarVisible, setSiataRadarVisible] = useState(false);
+    const [siataRadarData, setSiataRadarData] = useState<{ image_url?: string; bounds: any } | null>(null);
+    const [siataRadarLoading, setSiataRadarLoading] = useState(false);
 
     // Geospatial Audit
     const [auditData, setAuditData] = useState<AuditResult | null>(null);
@@ -223,8 +283,8 @@ export default function MapCanvas() {
             .catch(err => console.error('IDEAM fetch error:', err))
             .finally(() => setIdeamLoading(false));
 
-        // Load DIGER Data from InsForge Backend
-        insforgeRequest<any[]>('/api/database/records/datos_diger?limit=1000')
+        // Load ALL DIGER Data from InsForge Backend (with automatic pagination)
+        insforgeFetchAll<any>('/api/database/records/datos_diger')
             .then(data => {
                 if (data && Array.isArray(data)) {
                     const geojson: FeatureCollection = {
@@ -242,9 +302,145 @@ export default function MapCanvas() {
                 }
             })
             .catch(err => console.error('InsForge DIGER fetch error:', err));
+
+        // Load Amenaza Data from InsForge
+        setAmenazaLoading(true);
+        insforgeFetchAll<any>('/api/database/records/areas_amenaza')
+            .then(data => {
+                if (data && Array.isArray(data)) {
+                    const features = data.map(record => {
+                        try {
+                            const geom = JSON.parse(record.geometry_json);
+                            return {
+                                type: 'Feature',
+                                geometry: geom,
+                                properties: {
+                                    fid: record.fid,
+                                    nombre: record.nombre,
+                                    amenaza: record.amenaza,
+                                    subcategor: record.subcategor,
+                                    fuente: record.fuente
+                                }
+                            };
+                        } catch (e) {
+                            console.error('Error parsing geometry for amenaza:', record.id, e);
+                            return null;
+                        }
+                    }).filter(Boolean) as any[];
+
+                    setAmenazaData({
+                        type: 'FeatureCollection',
+                        features
+                    });
+                }
+            })
+            .catch(err => console.error('InsForge Amenaza fetch error:', err))
+            .finally(() => setAmenazaLoading(false));
+            
+        // Load Microzonificacion Sismica Data from InsForge
+        setMicrozonificacionLoading(true);
+        insforgeFetchAll<any>('/api/database/records/microzonificacion_sismica')
+            .then(data => {
+                if (data && Array.isArray(data)) {
+                    const features = data.map(record => {
+                        try {
+                            const geomStr = record.geometry_json || record.geom_geojson || record.geom;
+                            const geom = typeof geomStr === 'string' ? JSON.parse(geomStr) : geomStr;
+                            return {
+                                type: 'Feature',
+                                geometry: geom,
+                                properties: { ...record, geometry_json: undefined, geom_geojson: undefined, geom: undefined }
+                            };
+                        } catch (e) {
+                            console.error('Error parsing geometry for microzonificacion:', record.id, e);
+                            return null;
+                        }
+                    }).filter(Boolean) as any[];
+
+                    setMicrozonificacionData({
+                        type: 'FeatureCollection',
+                        features
+                    });
+                }
+            })
+            .catch(err => console.error('InsForge Microzonificacion fetch error:', err))
+            .finally(() => setMicrozonificacionLoading(false));
+            
+        // Load Simulacion 1999
+        setSimulacion1999Loading(true);
+        fetch('/Geodata/simulacion_1999.geojson')
+            .then(res => res.json())
+            .then(data => setSimulacion1999Data(data))
+            .catch(err => console.error('Simulacion 1999 fetch error:', err))
+            .finally(() => setSimulacion1999Loading(false));
+            
+        // Load Simulacion 1961
+        setSimulacion1961Loading(true);
+        fetch('/Geodata/simulacion_1961.geojson')
+            .then(res => res.json())
+            .then(data => setSimulacion1961Data(data))
+            .catch(err => console.error('Simulacion 1961 fetch error:', err))
+            .finally(() => setSimulacion1961Loading(false));
+            
+        // Load Social Posts
+        getSocialPosts()
+            .then(data => setSocialPosts(data))
+            .catch(err => console.error('Social Posts fetch error:', err));
+
+        // Load Hashtag #EmergenciaPereira posts
+        setHashtagLoading(true);
+        getHashtagPosts()
+            .then(data => setHashtagPosts(data))
+            .catch(err => console.error('Hashtag posts fetch error:', err))
+            .finally(() => setHashtagLoading(false));
+    }, []);
+
+    // ── Polling de Redes Sociales cada 20 segundos ──
+    const SOCIAL_POLL_MS = 20_000;
+    useEffect(() => {
+        if (!socialVisible && !hashtagVisible) return; // solo si alguna capa está activa
+
+        const poll = async () => {
+            try {
+                if (socialVisible) {
+                    const data = await getSocialPosts();
+                    setSocialPosts(data);
+                }
+                if (hashtagVisible) {
+                    const data = await getHashtagPosts();
+                    setHashtagPosts(data);
+                }
+            } catch (err) {
+                console.warn('[Social Polling] Error en la actualización:', err);
+            }
+        };
+
+        const id = setInterval(poll, SOCIAL_POLL_MS);
+        return () => clearInterval(id);
+    }, [socialVisible, hashtagVisible]);
+    
+    // Polling for real-time DIGER reports
+    useEffect(() => {
+        const fetchReportes = async () => {
+            try {
+                setReportesDigerLoading(true);
+                const response = await fetch('/api/diger/reporte');
+                const data = await response.json();
+                setReportesDigerData(data);
+            } catch (err) {
+                console.error('Error fetching real-time DIGER reports:', err);
+            } finally {
+                setReportesDigerLoading(false);
+            }
+        };
+
+        fetchReportes();
+        const interval = setInterval(fetchReportes, 30000); // Polling cada 30s
+        return () => clearInterval(interval);
     }, []);
 
     // Effect to fetch IDEAM MapServer layers when toggled
+
     useEffect(() => {
         Object.entries(ideamLayersVisible).forEach(([id, visible]) => {
             const layerId = parseInt(id);
@@ -262,7 +458,122 @@ export default function MapCanvas() {
                     });
             }
         });
-    }, [ideamLayersVisible, ideamMapLayerData, ideamMapLoading]);
+    }, [ideamLayersVisible]); // Solo re-ejecutar cuando cambia la visibilidad, no cuando cambia el estado de carga
+
+
+    // Effect to fetch AWS IDEAM Radar when toggled
+    useEffect(() => {
+        if (ideamRadarVisible && !ideamRadarData && !ideamRadarLoading) {
+            setIdeamRadarLoading(true);
+            fetch('http://127.0.0.1:8000/api/v1/weather/radar?station=Quibdo')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.image_base64 && data.bounds) {
+                        setIdeamRadarData({ image_base64: data.image_base64, bounds: data.bounds });
+                    }
+                    setIdeamRadarLoading(false);
+                })
+                .catch(err => {
+                    console.error('Error fetching radar:', err);
+                    setIdeamRadarLoading(false);
+                });
+        }
+    }, [ideamRadarVisible, ideamRadarData, ideamRadarLoading]);
+
+    // Efecto para Radar SIATA
+    useEffect(() => {
+        if (siataRadarVisible && !siataRadarData && !siataRadarLoading) {
+            setSiataRadarLoading(true);
+            fetch('http://127.0.0.1:8000/api/v1/weather/radar/siata')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.image_url && data.bounds) {
+                        setSiataRadarData(data);
+                    }
+                })
+                .catch(err => console.error("Error fetching SIATA radar:", err))
+                .finally(() => setSiataRadarLoading(false));
+        }
+    }, [siataRadarVisible, siataRadarData, siataRadarLoading]);
+
+    // Effect to fetch OSM Municipal Layers
+    useEffect(() => {
+        if (comunasVisible && !comunasData && !comunasLoading) {
+            setComunasLoading(true);
+            fetchPereiraBoundaries(9)
+                .then(setComunasData)
+                .finally(() => setComunasLoading(false));
+        }
+    }, [comunasVisible, comunasData, comunasLoading]);
+
+    useEffect(() => {
+        if (barriosVisible && !barriosData && !barriosLoading) {
+            setBarriosLoading(true);
+            fetchPereiraBoundaries(10)
+                .then(setBarriosData)
+                .finally(() => setBarriosLoading(false));
+        }
+    }, [barriosVisible, barriosData, barriosLoading]);
+
+    useEffect(() => {
+        if (perimetroVisible && !perimetroData && !perimetroLoading) {
+            setPerimetroLoading(true);
+            fetchUrbanPerimeter()
+                .then(setPerimetroData)
+                .finally(() => setPerimetroLoading(false));
+        }
+    }, [perimetroVisible, perimetroData, perimetroLoading]);
+
+    const simulacionCustomData = useMemo(() => {
+        if (!simulacionCustomVisible || !microzonificacionData) return null;
+        
+        // Cálculo abstracto de daño para pedagogía
+        const magBase = Math.max(0, simulacionCustomMag - 4);
+        const distAtenuacion = Math.max(0, 1 - (simulacionCustomDist / 100)); // Atenúa hasta 100km
+        const profAtenuacion = Math.max(0, 1 - (simulacionCustomProf / 150)); // Atenúa hasta 150km
+        
+        // Aceleración base proporcional
+        const factor_pga = magBase * 0.15 * distAtenuacion * profAtenuacion; 
+        
+        const features = microzonificacionData.features.map((feature: any) => {
+            const row = feature.properties;
+            const pcr_tasa = parseFloat(row.pcr_tasa || "0.0");
+            const mamp_tasa = parseFloat(row.mamp_tasa || "0.0");
+            
+            // Simplificación: sismos superficiales afectan rígidos (mampostería), sismos profundos resuenan en esbeltos (pórticos)
+            const danio = (mamp_tasa * factor_pga * (simulacionCustomProf < 50 ? 1.5 : 0.8)) + 
+                          (pcr_tasa * factor_pga * (simulacionCustomProf >= 50 ? 1.5 : 0.8));
+                          
+            let color, estado;
+            if (danio > 1.2) {
+                color = "#E31A1C"; estado = "CRÍTICO";
+            } else if (danio > 0.6) {
+                color = "#FB9A99"; estado = "MODERADO";
+            } else {
+                color = "#33A02C"; estado = "ESTABLE";
+            }
+            
+            const isNoCoverage = pcr_tasa === 0 && mamp_tasa === 0;
+
+            return {
+                ...feature,
+                properties: {
+                    ...feature.properties,
+                    danio_index: danio,
+                    estado_riesgo: estado,
+                    fill: isNoCoverage ? "transparent" : color,
+                    "fill-opacity": isNoCoverage ? 0 : 0.7,
+                    stroke: isNoCoverage ? "transparent" : "#000000",
+                    "stroke-width": isNoCoverage ? 0 : 1
+                }
+            };
+        });
+        
+        return {
+            type: "FeatureCollection",
+            features
+        } as FeatureCollection;
+    }, [microzonificacionData, simulacionCustomVisible, simulacionCustomMag, simulacionCustomProf, simulacionCustomDist]);
 
     const handleFileUpload = useCallback(async (files: FileList | null) => {
         if (!files) return;
@@ -392,7 +703,7 @@ export default function MapCanvas() {
     const interactiveLayerIds = [
         ...kmlLayers.filter(l => l.visible).flatMap(l => [`${l.id}-fill`, `${l.id}-line`, `${l.id}-points`]),
         ...IDEAM_LAYERS.filter(l => ideamLayersVisible[l.id]).flatMap(l => [`ideam-${l.id}-fill`, `ideam-${l.id}-line`]),
-        'barrios-fill', 'comunas-fill', 'pot-fill', 'perimetro-line', 'diger-points'
+        'barrios-fill', 'comunas-fill', 'pot-fill', 'perimetro-line', 'diger-points', 'amenaza-fill', 'microzonificacion-fill', 'simulacion1999-fill', 'simulacion1961-fill', 'simulacionCustom-fill'
     ];
 
     return (
@@ -428,6 +739,10 @@ export default function MapCanvas() {
                         let layerName = 'Capa';
                         if (feature.layer.id === 'diger-points') {
                             layerName = 'Histórico DIGER';
+                        } else if (feature.layer.id === 'amenaza-fill') {
+                            layerName = 'Amenaza Urbano/Expansión';
+                        } else if (feature.layer.id === 'microzonificacion-fill') {
+                            layerName = 'Microzonificación Sísmica';
                         } else if (feature.layer.id.startsWith('ideam-')) {
                             const ideamId = parseInt(feature.layer.id.split('-')[1]);
                             layerName = IDEAM_LAYERS.find(l => l.id === ideamId)?.name || 'IDEAM';
@@ -450,6 +765,7 @@ export default function MapCanvas() {
                     setSelectedEra5(false);
                     setSelectedIdeam(null);
                     setSelectedKmlFeature(null);
+                    setSelectedSocialPost(null);
 
                     if ((temperatureMapVisible || precipitationVisible) && OPENWEATHER_API_KEY) {
                         setOwmLoading(true);
@@ -474,6 +790,208 @@ export default function MapCanvas() {
                 <GeolocateControl position="top-right" />
                 <FullscreenControl position="top-right" />
                 <NavigationControl position="top-right" />
+
+                {/* ── Radares Meteorológicos ── */}
+                
+                {/* Capa de Radar IDEAM (Quibdó) */}
+                {ideamRadarVisible && ideamRadarData && (
+                    <Source
+                        id="ideam-radar"
+                        type="image"
+                        url={ideamRadarData.image_base64!}
+                        coordinates={ideamRadarData.bounds}
+                    >
+                        <Layer
+                            id="ideam-radar-layer"
+                            type="raster"
+                            paint={{ 'raster-opacity': 0.6 }}
+                        />
+                    </Source>
+                )}
+
+                {/* Capa de Radar SIATA (Santa Elena) */}
+                {siataRadarVisible && siataRadarData && (
+                    <Source
+                        id="siata-radar"
+                        type="image"
+                        url={siataRadarData.image_url!}
+                        coordinates={siataRadarData.bounds}
+                    >
+                        <Layer
+                            id="siata-radar-layer"
+                            type="raster"
+                            paint={{ 'raster-opacity': 0.6 }}
+                        />
+                    </Source>
+                )}
+
+                {/* ── Capas Municipales (OSM) ── */}
+
+                {/* Perímetro Urbano */}
+                {perimetroVisible && perimetroData && (
+                    <Source id="perimetro-urbano" type="geojson" data={perimetroData}>
+                        <Layer
+                            id="perimetro-line"
+                            type="line"
+                            paint={{
+                                'line-color': '#94A3B8',
+                                'line-width': 2.5,
+                                'line-dasharray': [2, 1],
+                                'line-opacity': 0.8
+                            }}
+                        />
+                    </Source>
+                )}
+
+                {/* Comunas */}
+                {comunasVisible && comunasData && (
+                    <Source id="comunas-pereira" type="geojson" data={comunasData}>
+                        <Layer
+                            id="comunas-fill"
+                            type="fill"
+                            paint={{
+                                'fill-color': '#3B82F6',
+                                'fill-opacity': 0.15,
+                                'fill-outline-color': '#2563EB'
+                            }}
+                        />
+                        <Layer
+                            id="comunas-line"
+                            type="line"
+                            paint={{
+                                'line-color': '#2563EB',
+                                'line-width': 1.5,
+                                'line-opacity': 0.6
+                            }}
+                        />
+                    </Source>
+                )}
+
+                {/* Barrios */}
+                {barriosVisible && barriosData && (
+                    <Source id="barrios-pereira" type="geojson" data={barriosData}>
+                        <Layer
+                            id="barrios-fill"
+                            type="fill"
+                            paint={{
+                                'fill-color': '#10B981',
+                                'fill-opacity': 0.1,
+                                'fill-outline-color': '#059669'
+                            }}
+                        />
+                        <Layer
+                            id="barrios-line"
+                            type="line"
+                            paint={{
+                                'line-color': '#059669',
+                                'line-width': 1,
+                                'line-opacity': 0.4
+                            }}
+                        />
+                    </Source>
+                )}
+
+                {/* Microzonificación Sísmica */}
+                {microzonificacionVisible && microzonificacionData && (
+                    <Source id="microzonificacion-sismica" type="geojson" data={microzonificacionData}>
+                        <Layer
+                            id="microzonificacion-fill"
+                            type="fill"
+                            paint={{
+                                'fill-color': [
+                                    "interpolate",
+                                    ["linear"],
+                                    ["get", "todos_tasa"],
+                                    0, "#fef0d9",
+                                    5, "#fdcc8a",
+                                    12, "#fc8d59",
+                                    20, "#e34a33",
+                                    30, "#b30000"
+                                ],
+                                'fill-opacity': 0.6,
+                                'fill-outline-color': '#9F1239'
+                            }}
+                        />
+                        <Layer
+                            id="microzonificacion-line"
+                            type="line"
+                            paint={{
+                                'line-color': '#9F1239',
+                                'line-width': 1.5,
+                                'line-opacity': 0.8
+                            }}
+                        />
+                    </Source>
+                )}
+
+                {/* Simulacion 1999 */}
+                {simulacion1999Visible && simulacion1999Data && (
+                    <Source id="simulacion-1999" type="geojson" data={simulacion1999Data}>
+                        <Layer
+                            id="simulacion1999-fill"
+                            type="fill"
+                            paint={{
+                                'fill-color': ["get", "fill"],
+                                'fill-opacity': ["get", "fill-opacity"]
+                            }}
+                        />
+                        <Layer
+                            id="simulacion1999-line"
+                            type="line"
+                            paint={{
+                                'line-color': ["get", "stroke"],
+                                'line-width': ["get", "stroke-width"],
+                                'line-opacity': 0.8
+                            }}
+                        />
+                    </Source>
+                )}
+
+                {/* Simulacion 1961 */}
+                {simulacion1961Visible && simulacion1961Data && (
+                    <Source id="simulacion-1961" type="geojson" data={simulacion1961Data}>
+                        <Layer
+                            id="simulacion1961-fill"
+                            type="fill"
+                            paint={{
+                                'fill-color': ["get", "fill"],
+                                'fill-opacity': ["get", "fill-opacity"]
+                            }}
+                        />
+                        <Layer
+                            id="simulacion1961-line"
+                            type="line"
+                            paint={{
+                                'line-color': ["get", "stroke"],
+                                'line-width': ["get", "stroke-width"],
+                                'line-opacity': 0.8
+                            }}
+                        />
+                    </Source>
+                )}
+
+                {/* Simulacion Custom Interactiva */}
+                {simulacionCustomVisible && simulacionCustomData && (
+                    <Source id="simulacion-custom" type="geojson" data={simulacionCustomData}>
+                        <Layer
+                            id="simulacionCustom-fill"
+                            type="fill"
+                            paint={{
+                                'fill-color': ["get", "fill"],
+                                'fill-opacity': ["get", "fill-opacity"]
+                            }}
+                        />
+                        <Layer
+                            id="simulacionCustom-line"
+                            type="line"
+                            paint={{
+                                'line-color': ["get", "stroke"],
+                                'line-width': ["get", "stroke-width"],
+                                'line-opacity': 0.8
+                            }}
+                        />
+                    </Source>
+                )}
 
                 {/* IDEAM Station Markers — colored by rainfall level (altitude proxy) */}
                 {ideamVisible && ideamStations.map((station) => {
@@ -627,6 +1145,192 @@ export default function MapCanvas() {
                         </Marker>
                     );
                 })}
+
+                {/* Social Posts Markers */}
+                {socialVisible && socialPosts.filter(p => p.location).map((post) => {
+                    const color = post.sentiment === 'urgent' ? '#EF4444' : post.sentiment === 'warning' ? '#F59E0B' : '#10B981';
+                    return (
+                        <Marker
+                            key={`social-${post.id}`}
+                            longitude={post.location!.lng}
+                            latitude={post.location!.lat}
+                            anchor="center"
+                            onClick={(e) => {
+                                e.originalEvent.stopPropagation();
+                                setSelectedSocialPost(post);
+                                setSelectedEvent(null);
+                                setSelectedSismo(null);
+                                setSelectedIdeam(null);
+                            }}
+                        >
+                            <div className="cursor-pointer group relative">
+                                <div className="absolute inset-0 w-8 h-8 -translate-x-1/4 -translate-y-1/4 rounded-full animate-ping opacity-25" style={{ backgroundColor: color }} />
+                                <div className="relative flex items-center justify-center w-8 h-8 rounded-full border-2 border-white shadow-md group-hover:scale-110 transition-transform" style={{ backgroundColor: color }}>
+                                    <MessageCircle className="w-4 h-4 text-white" />
+                                </div>
+                            </div>
+                        </Marker>
+                    );
+                })}
+
+                {/* Social Posts Popup */}
+                {socialVisible && selectedSocialPost && selectedSocialPost.location && (
+                    <Popup
+                        longitude={selectedSocialPost.location.lng}
+                        latitude={selectedSocialPost.location.lat}
+                        anchor="bottom"
+                        onClose={() => setSelectedSocialPost(null)}
+                        closeOnClick={false}
+                    >
+                        <div className="p-2 max-w-[280px] font-inter">
+                            <div className="flex items-center gap-2 mb-2 border-b border-gray-100 pb-2">
+                                <MessageCircle className="w-4 h-4 text-blue-500" />
+                                <span className="text-sm font-bold text-gray-800 capitalize">Reporte {selectedSocialPost.platform}</span>
+                            </div>
+                            
+                            {selectedSocialPost.mediaUrl && (
+                                <div className="mb-2 rounded-md overflow-hidden bg-gray-100">
+                                    {selectedSocialPost.mediaType === 'video' ? (
+                                        <video src={selectedSocialPost.mediaUrl} controls className="w-full h-auto max-h-[160px] object-cover" />
+                                    ) : (
+                                        <img src={selectedSocialPost.mediaUrl} alt="Report media" className="w-full h-auto max-h-[160px] object-cover" />
+                                    )}
+                                </div>
+                            )}
+
+                            <p className="text-xs text-gray-700 italic mb-2">"{selectedSocialPost.text}"</p>
+                            
+                            <div className="flex justify-between items-center text-[10px] mb-1">
+                                <span className={`px-2 py-0.5 rounded-full font-bold text-white ${
+                                    selectedSocialPost.sentiment === 'urgent' ? 'bg-red-500'
+                                    : selectedSocialPost.sentiment === 'warning' ? 'bg-amber-500'
+                                    : 'bg-emerald-500'
+                                }`}>
+                                    {selectedSocialPost.sentiment.toUpperCase()}
+                                </span>
+                                <span className="text-gray-400">{new Date(selectedSocialPost.timestamp).toLocaleString()}</span>
+                            </div>
+
+                            {selectedSocialPost.postUrl && (
+                                <div className="mt-2 pt-2 border-t border-gray-100">
+                                    <a
+                                        href={selectedSocialPost.postUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-[10px] text-blue-600 hover:text-blue-800 hover:underline flex items-center justify-end gap-1 font-bold"
+                                    >
+                                        Ver original <ExternalLink className="w-3 h-3" />
+                                    </a>
+                                </div>
+                            )}
+                        </div>
+                    </Popup>
+                )}
+
+                {/* ── Capa Hashtag #EmergenciaPereira ── */}
+                {hashtagVisible && hashtagPosts.filter(p => p.location).map((post) => {
+                    const color = post.sentiment === 'urgent' ? '#EF4444'
+                        : post.sentiment === 'warning' ? '#F59E0B'
+                        : '#38BDF8';
+                    return (
+                        <Marker
+                            key={`hashtag-${post.id}`}
+                            longitude={post.location!.lng}
+                            latitude={post.location!.lat}
+                            anchor="center"
+                            onClick={(e) => {
+                                e.originalEvent.stopPropagation();
+                                setSelectedHashtagPost(post);
+                                setSelectedSocialPost(null);
+                                setSelectedEvent(null);
+                                setSelectedSismo(null);
+                            }}
+                        >
+                            <div className="cursor-pointer group relative">
+                                {/* Pulsating ring */}
+                                <div
+                                    className="absolute inset-0 w-10 h-10 -translate-x-[25%] -translate-y-[25%] rounded-full animate-ping opacity-30"
+                                    style={{ backgroundColor: color }}
+                                />
+                                {/* Main marker — squircle shape with Hash icon */}
+                                <div
+                                    className="relative flex items-center justify-center w-10 h-10 rounded-xl border-2 border-white shadow-xl group-hover:scale-110 transition-transform"
+                                    style={{ backgroundColor: color }}
+                                >
+                                    <Hash className="w-5 h-5 text-white" strokeWidth={2.5} />
+                                </div>
+                            </div>
+                        </Marker>
+                    );
+                })}
+
+                {/* Hashtag Post Popup */}
+                {hashtagVisible && selectedHashtagPost && selectedHashtagPost.location && (
+                    <Popup
+                        longitude={selectedHashtagPost.location.lng}
+                        latitude={selectedHashtagPost.location.lat}
+                        anchor="bottom"
+                        onClose={() => setSelectedHashtagPost(null)}
+                        closeOnClick={false}
+                    >
+                        <div className="p-2 max-w-[300px] font-inter">
+                            {/* Header */}
+                            <div className="flex items-center gap-2 mb-2 border-b border-gray-100 pb-2">
+                                <Hash className="w-4 h-4 text-sky-500" />
+                                <span className="text-sm font-bold text-gray-800">EmergenciaPereira</span>
+                                <span className={`ml-auto px-1.5 py-0.5 rounded text-[9px] font-bold text-white ${
+                                    selectedHashtagPost.source === 'live' ? 'bg-emerald-500' : 'bg-gray-400'
+                                }`}>
+                                    {selectedHashtagPost.source === 'live' ? '🟢 EN VIVO' : '📋 DEMO'}
+                                </span>
+                            </div>
+
+                            {/* Tweet text */}
+                            <p className="text-xs text-gray-700 mb-2 leading-relaxed">
+                                {selectedHashtagPost.text}
+                            </p>
+
+                            {/* Hashtags */}
+                            <div className="flex flex-wrap gap-1 mb-2">
+                                {selectedHashtagPost.hashtags?.slice(0, 4).map(tag => (
+                                    <span key={tag} className="text-[9px] text-sky-600 font-medium bg-sky-50 px-1.5 py-0.5 rounded">
+                                        {tag}
+                                    </span>
+                                ))}
+                            </div>
+
+                            {/* Meta row */}
+                            <div className="flex items-center justify-between text-[10px] mb-2">
+                                <span className={`px-2 py-0.5 rounded-full font-bold text-white ${
+                                    selectedHashtagPost.sentiment === 'urgent' ? 'bg-red-500'
+                                    : selectedHashtagPost.sentiment === 'warning' ? 'bg-amber-500'
+                                    : 'bg-sky-500'
+                                }`}>
+                                    {selectedHashtagPost.sentiment.toUpperCase()}
+                                </span>
+                                <span className="text-gray-400">{new Date(selectedHashtagPost.timestamp).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' })}</span>
+                            </div>
+
+                            {/* Engagement stats */}
+                            <div className="flex items-center gap-3 text-[10px] text-gray-500 mb-2 bg-gray-50 rounded p-1.5">
+                                <span>📍 {selectedHashtagPost.location_text}</span>
+                                <span className="ml-auto">❤️ {selectedHashtagPost.likes}</span>
+                                <span>🔁 {selectedHashtagPost.retweets}</span>
+                            </div>
+
+                            {/* Author + Link */}
+                            <div className="flex items-center justify-between">
+                                <span className="text-[10px] text-gray-500 font-medium">{selectedHashtagPost.author}</span>
+                                {selectedHashtagPost.postUrl && (
+                                    <a href={selectedHashtagPost.postUrl} target="_blank" rel="noopener noreferrer"
+                                        className="text-[10px] text-sky-600 hover:underline flex items-center gap-1 font-bold">
+                                        Ver tweet <ExternalLink className="w-3 h-3" />
+                                    </a>
+                                )}
+                            </div>
+                        </div>
+                    </Popup>
+                )}
 
                 {/* OpenWeatherMap Raster Layers */}
                 {precipitationVisible && OPENWEATHER_API_KEY && (
@@ -830,6 +1534,53 @@ export default function MapCanvas() {
                     </Source>
                 )}
 
+                {/* Amenaza Urbano/Expansión (Desde InsForge) - Temática por Subcategoría */}
+                {amenazaVisible && amenazaData && (
+                    <Source id="amenaza-source" type="geojson" data={amenazaData}>
+                        {/* Relleno temático por subcategoría */}
+                        <Layer
+                            id="amenaza-fill"
+                            type="fill"
+                            paint={{
+                                'fill-color': [
+                                    'match',
+                                    ['get', 'subcategor'],
+                                    'Amenaza alta por fenómenos de remoción en masa', '#92400E',
+                                    'Amenaza alta por inundación',                    '#1D4ED8',
+                                    'Amenaza media por inundación',                   '#60A5FA',
+                                    'Amenaza baja por inundación',                    '#93C5FD',
+                                    'Amenaza media por fenómenos de remoción en masa','#B45309',
+                                    'Amenaza baja por fenómenos de remoción en masa', '#D97706',
+                                    /* color por defecto para subcategorías no mapeadas */
+                                    '#6B7280'
+                                ],
+                                'fill-opacity': 0.78
+                            } as any}
+                        />
+                        {/* Borde contorno semántico por subcategoría */}
+                        <Layer
+                            id="amenaza-outline"
+                            type="line"
+                            paint={{
+                                'line-color': [
+                                    'match',
+                                    ['get', 'subcategor'],
+                                    'Amenaza alta por fenómenos de remoción en masa', '#78350F',
+                                    'Amenaza alta por inundación',                    '#1E40AF',
+                                    'Amenaza media por inundación',                   '#3B82F6',
+                                    'Amenaza baja por inundación',                    '#BFDBFE',
+                                    'Amenaza media por fenómenos de remoción en masa','#92400E',
+                                    'Amenaza baja por fenómenos de remoción en masa', '#B45309',
+                                    '#9CA3AF'
+                                ],
+                                'line-width': 2,
+                                'line-opacity': 1.0
+                            } as any}
+                        />
+                    </Source>
+                )}
+
+
                 {/* KML GeoJSON Layers */}
                 {kmlLayers.filter(l => l.visible).map((layer) => (
                     <Source key={layer.id} id={layer.id} type="geojson" data={layer.geojson}>
@@ -892,6 +1643,52 @@ export default function MapCanvas() {
                                 'circle-stroke-color': '#ffffff',
                                 'circle-opacity': 0.8,
                             } as CircleLayerSpecification['paint']}
+                        />
+                    </Source>
+                )}
+
+                {/* Real-time DIGER Reports (Categorizada Temáticamente) */}
+                {reportesDigerVisible && reportesDigerData && (
+                    <Source id="reportes-diger-source" type="geojson" data={reportesDigerData}>
+                        <Layer
+                            id="reportes-diger-points"
+                            type="circle"
+                            paint={{
+                                'circle-radius': [
+                                    'interpolate', ['linear'], ['zoom'],
+                                    10, 6,
+                                    15, 12
+                                ],
+                                'circle-color': [
+                                    'match',
+                                    ['get', 'tipo'],
+                                    'Inundación', '#3B82F6',   // Blue
+                                    'Incendio', '#EF4444',     // Red
+                                    'Deslizamiento', '#D97706', // Orange/Brown
+                                    'Sismo', '#8B5CF6',         // Purple
+                                    'Vendaval', '#06B6D4',      // Cyan/Light Blue
+                                    '#FBBF24'                   // Yellow for Others
+                                ],
+                                'circle-stroke-width': 2,
+                                'circle-stroke-color': '#ffffff',
+                                'circle-opacity': 0.9,
+                            } as CircleLayerSpecification['paint']}
+                        />
+                        <Layer
+                            id="reportes-diger-labels"
+                            type="symbol"
+                            layout={{
+                                'text-field': ['get', 'tipo'],
+                                'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+                                'text-size': 10,
+                                'text-offset': [0, 1.5],
+                                'text-anchor': 'top',
+                            }}
+                            paint={{
+                                'text-color': '#ffffff',
+                                'text-halo-color': 'rgba(0,0,0,0.8)',
+                                'text-halo-width': 1.5
+                            }}
                         />
                     </Source>
                 )}
@@ -1199,6 +1996,32 @@ export default function MapCanvas() {
                                     </div>
                                 </div>
                             </div>
+                        ) : selectedKmlFeature.layerName === 'Amenaza Urbano/Expansión' ? (
+                            <div className="p-2.5 max-w-[280px] font-inter bg-white rounded-xl shadow-xl border border-red-100">
+                                <div className="flex items-center gap-2 mb-3 pb-2 border-b border-red-50">
+                                    <AlertTriangle className="w-4 h-4 text-red-500" />
+                                    <span className="text-xs font-bold text-gray-800 uppercase tracking-tight">Zona de Amenaza</span>
+                                    <span className={`ml-auto text-[10px] px-2 py-0.5 rounded-full font-bold text-white ${
+                                        (selectedKmlFeature.properties as any).amenaza === 'Alta' ? 'bg-red-500' :
+                                        (selectedKmlFeature.properties as any).amenaza === 'Media' ? 'bg-amber-500' : 'bg-yellow-500'
+                                    }`}>
+                                        {(selectedKmlFeature.properties as any).amenaza}
+                                    </span>
+                                </div>
+                                <div className="space-y-3">
+                                    <div>
+                                        <p className="text-[10px] text-gray-400 font-bold uppercase mb-0.5">Nombre de la Zona</p>
+                                        <p className="text-xs font-bold text-gray-900 leading-tight">{(selectedKmlFeature.properties as any).nombre}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] text-gray-400 font-bold uppercase mb-0.5">Subcategoría</p>
+                                        <p className="text-[11px] text-gray-700">{(selectedKmlFeature.properties as any).subcategor}</p>
+                                    </div>
+                                    <div className="pt-2 mt-2 border-t border-gray-50 flex justify-between items-center italic">
+                                        <span className="text-[9px] text-gray-400">Fuente: {(selectedKmlFeature.properties as any).fuente}</span>
+                                    </div>
+                                </div>
+                            </div>
                         ) : (
                             <div className="p-2 max-w-[300px] max-h-[400px] overflow-y-auto siata-scrollbar font-inter bg-white rounded-lg">
                                 <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-100">
@@ -1300,6 +2123,64 @@ export default function MapCanvas() {
                         </Popup>
                     );
                 })()}
+
+                {/* Real-time DIGER Report Popup */}
+                {selectedReporteDiger && (() => {
+                    const props = selectedReporteDiger.properties;
+                    const coords = selectedReporteDiger.geometry.coordinates;
+                    const color = 
+                        props.tipo === 'Inundación' ? '#3B82F6' :
+                        props.tipo === 'Incendio' ? '#EF4444' :
+                        props.tipo === 'Deslizamiento' ? '#D97706' :
+                        props.tipo === 'Sismo' ? '#8B5CF6' :
+                        props.tipo === 'Vendaval' ? '#06B6D4' : '#FBBF24';
+
+                    return (
+                        <Popup
+                            longitude={coords[0]}
+                            latitude={coords[1]}
+                            anchor="bottom"
+                            onClose={() => setSelectedReporteDiger(null)}
+                            closeOnClick={false}
+                        >
+                            <div className="p-2.5 max-w-[280px] font-inter bg-white rounded-xl shadow-xl overflow-hidden border border-gray-100">
+                                {/* Header Temático */}
+                                <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-100">
+                                    <div className="w-3 h-3 rounded-full animate-pulse" style={{ backgroundColor: color }} />
+                                    <span className="text-xs font-bold text-gray-800 uppercase tracking-tight">{props.tipo}</span>
+                                    <span className="ml-auto text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-bold">DIGER</span>
+                                </div>
+
+                                <div className="space-y-3">
+                                    <div>
+                                        <p className="text-[10px] text-gray-400 font-bold uppercase mb-0.5">Descripción</p>
+                                        <p className="text-xs text-gray-700 leading-snug">{props.descripcion || 'Sin descripción detallada'}</p>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <p className="text-[9px] text-gray-400 font-bold uppercase mb-0.5">Fecha Reporte</p>
+                                            <p className="text-[10px] font-medium text-gray-600">{new Date(props.fecha).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[9px] text-gray-400 font-bold uppercase mb-0.5">Estado</p>
+                                            <span className="text-[9px] bg-emerald-50 text-emerald-600 border border-emerald-100 px-1.5 py-0.5 rounded font-bold">{props.estado}</span>
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Censo Resumido (Si se implementa el fetching de recursos luego) */}
+                                    <div className="bg-gray-50 rounded-lg p-2 border border-gray-100">
+                                        <div className="flex items-center gap-1.5 mb-1.5">
+                                            <AlertTriangle className="w-3 h-3 text-amber-500" />
+                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-tighter">Impacto Reportado</span>
+                                        </div>
+                                        <p className="text-[10px] text-gray-600 italic leading-tight">Click en el panel de incidentes para censo detallado</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </Popup>
+                    );
+                })()}
             </Map>
 
             {/* SIATA UI Components */}
@@ -1336,6 +2217,23 @@ export default function MapCanvas() {
                 potVisible={potVisible} togglePot={() => setPotVisible(!potVisible)}
                 perimetroVisible={perimetroVisible} togglePerimetro={() => setPerimetroVisible(!perimetroVisible)}
                 digerVisible={digerVisible} toggleDiger={() => setDigerVisible(!digerVisible)}
+                amenazaVisible={amenazaVisible} toggleAmenaza={() => setAmenazaVisible(!amenazaVisible)}
+                amenazaLoading={amenazaLoading}
+                microzonificacionVisible={microzonificacionVisible} toggleMicrozonificacion={() => setMicrozonificacionVisible(!microzonificacionVisible)}
+                microzonificacionLoading={microzonificacionLoading}
+                simulacion1999Visible={simulacion1999Visible} toggleSimulacion1999={() => setSimulacion1999Visible(!simulacion1999Visible)}
+                simulacion1999Loading={simulacion1999Loading}
+                simulacion1961Visible={simulacion1961Visible} toggleSimulacion1961={() => setSimulacion1961Visible(!simulacion1961Visible)}
+                simulacion1961Loading={simulacion1961Loading}
+                simulacionCustomVisible={simulacionCustomVisible}
+                toggleSimulacionCustom={() => setSimulacionCustomVisible(!simulacionCustomVisible)}
+                simulacionCustomMag={simulacionCustomMag} setSimulacionCustomMag={setSimulacionCustomMag}
+                simulacionCustomProf={simulacionCustomProf} setSimulacionCustomProf={setSimulacionCustomProf}
+                simulacionCustomDist={simulacionCustomDist} setSimulacionCustomDist={setSimulacionCustomDist}
+                socialVisible={socialVisible} toggleSocial={() => { setSocialVisible(v => { if (v) setSelectedSocialPost(null); return !v; }); }}
+                hashtagVisible={hashtagVisible} toggleHashtag={() => { setHashtagVisible(v => { if (v) setSelectedHashtagPost(null); return !v; }); }}
+                hashtagLoading={hashtagLoading}
+
                 sismosLoading={sismosLoading}
                 usgsLoading={usgsLoading}
                 volcanicLoading={volcanicLoading}
@@ -1347,6 +2245,32 @@ export default function MapCanvas() {
                 volcanicCount={volcanicZones?.features?.length ?? 0}
                 ideamCount={ideamStations.length}
                 activeSidebarSection={activeSidebarSection}
+                ideamRadarVisible={ideamRadarVisible}
+                ideamRadarLoading={ideamRadarLoading}
+                toggleIdeamRadar={() => {
+                    if (ideamRadarVisible) {
+                        setIdeamRadarVisible(false);
+                        setIdeamRadarData(null);
+                    } else {
+                        setIdeamRadarVisible(true);
+                    }
+                }}
+                siataRadarVisible={siataRadarVisible}
+                siataRadarLoading={siataRadarLoading}
+                toggleSiataRadar={() => {
+                    if (siataRadarVisible) {
+                        setSiataRadarVisible(false);
+                        setSiataRadarData(null);
+                    } else {
+                        setSiataRadarVisible(true);
+                    }
+                }}
+                barriosLoading={barriosLoading}
+                comunasLoading={comunasLoading}
+                perimetroLoading={perimetroLoading}
+                reportesDigerVisible={reportesDigerVisible}
+                toggleReportesDiger={() => setReportesDigerVisible(!reportesDigerVisible)}
+                reportesDigerLoading={reportesDigerLoading}
             >
                 {/* Analytics Content for the "Análisis" tab */}
                 {activeSidebarSection === 'analytics' ? (
