@@ -1,0 +1,45 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "id": 1,
+        "name": "Geometría Inválida (Auto-intersección)",
+        "desc": "Este polígono tiene un cruce en su anillo exterior para disparar la alerta de Auditoría."
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-75.6946, 4.8133],
+            [-75.6986, 4.8133],
+            [-75.6946, 4.8093],
+            [-75.6986, 4.8093],
+            [-75.6946, 4.8133]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": 2,
+        "name": "Geometría Válida",
+        "desc": "Polígono regular en Pereira."
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-75.7, 4.82],
+            [-75.71, 4.82],
+            [-75.71, 4.81],
+            [-75.7, 4.81],
+            [-75.7, 4.82]
+          ]
+        ]
+      }
+    }
+  ]
+}

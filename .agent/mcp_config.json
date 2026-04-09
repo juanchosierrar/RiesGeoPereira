@@ -1,24 +1,59 @@
 {
     "mcpServers": {
-        "context7": {
+        "firebase": {
             "command": "npx",
             "args": [
                 "-y",
-                "@upstash/context7-mcp",
-                "--api-key",
-                "YOUR_API_KEY"
-            ]
-        },
-        "shadcn": {
-            "command": "npx",
-            "args": [
-                "shadcn@latest",
+                "firebase-tools@latest",
                 "mcp"
             ]
+        },
+        "stitch": {
+            "serverUrl": "https://stitch.googleapis.com/mcp",
+            "headers": {
+                "Authorization": "%APPDATA%\\Claude\\claude_desktop_config.json",
+                "X-Goog-User-Project": "AQ.Ab8RN6LPNOTxgmtafZr5U19mPzCitjSW3t0zCN3_zvhQv6iiNA"
+            }
+        },
+        "github": {
+            "command": "npx",
+            "args": [
+                "-y",
+                "@modelcontextprotocol/server-github"
+            ]
+        },
+        "insforge": {
+            "command": "npx",
+            "args": [
+                "-y",
+                "@insforge/mcp@latest"
+            ],
+            "env": {
+                "API_KEY": "ik_856278a86e9f74e10d0a5c348cf0b2a2",
+                "API_BASE_URL": "https://dt7mf4ie.us-west.insforge.app"
+            }
+        },
+        "magic-mcp": {
+            "command": "npx",
+            "args": [
+                "-y",
+                "@magicuidesign/mcp"
+            ]
+        },
+        "testsprite": {
+            "command": "npx",
+            "args": [
+                "-y",
+                "@testsprite/testsprite-mcp@latest"
+            ]
+        },
+        "notebooklm": {
+            "command": "npx",
+            "args": [
+                "-y",
+                "notebooklm-mcp-server"
+            ]
         }
-        //other mcp servers
     }
 }
-
 // setup mcp server in  ~/.gemini\antigravity\mcp_config.json
-
