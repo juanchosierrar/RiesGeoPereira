@@ -9,5 +9,8 @@
     "postinstall": "npm install --prefix web",
     "build": "npm run build --prefix web",
     "start": "npm run start --prefix web"
+  },
+  "dependencies": {
+    "rss-parser": "^3.13.0"
   }
 }

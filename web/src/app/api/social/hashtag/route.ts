@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import Parser from 'rss-parser';
 
 
 // Pereira area known locations for text-based geocoding
@@ -307,6 +308,76 @@ async function fetchRealTweets(bearerToken: string) {
     }).filter((post: any) => post.location !== null);
 }
 
+// OSINT Rescue Scraper via Nitter RSS (Fallback if no official API key available)
+async function fetchNitterScraper(): Promise<any[]> {
+    const instances = [
+        'https://nitter.poast.org',
+        'https://nitter.privacydev.net',
+        'https://nitter.lucabased.xyz',
+        'https://xcancel.com'
+    ];
+    
+    const parser = new Parser({
+        customFields: {
+            item: [['dc:creator', 'creator']]
+        }
+    });
+
+    const searchQuery = '%23EmergenciaPereira OR %23EmergenciaPEI';
+    
+    // Rotate Nitter instances to find an active one
+    for (const baseUrl of instances) {
+        try {
+            const rssUrl = `${baseUrl}/search/rss?f=tweets&q=${searchQuery}`;
+            const feed = await parser.parseURL(rssUrl);
+            
+            if (feed.items && feed.items.length > 0) {
+                console.log(`[OSINT Scraper] Exito usando instancia: ${baseUrl}`);
+                return feed.items.map((item: any) => {
+                    const textContent = (item.title || item.contentSnippet || '').replace(/<[^>]*>?/gm, ''); // strip HTML
+                    
+                    // Simple Geocoding fallback
+                    const location = geocodeFromText(textContent) || { lat: 4.8133, lng: -75.6961, name: 'Pereira' };
+                    
+                    // Sentiment Analysis
+                    const textLower = textContent.toLowerCase();
+                    const sentiment = textLower.includes('urgente') || textLower.includes('emergencia') || textLower.includes('inundación') 
+                        ? 'urgent' 
+                        : textLower.includes('precaución') || textLower.includes('deslizamiento') || textLower.includes('sismo') 
+                            ? 'warning' 
+                            : 'informational';
+                    
+                    const postUrl = item.link && item.link.includes('nitter') 
+                        ? item.link.replace(/nitter\.[^\/]+/, 'twitter.com') 
+                        : (item.link || 'https://twitter.com');
+                        
+                    return {
+                        id: item.guid || `tw_osint_${Date.now()}_${Math.random()}`,
+                        text: textContent,
+                        author: item.creator ? item.creator : '@UsuarioTwitter',
+                        platform: 'twitter',
+                        timestamp: item.pubDate ? new Date(item.pubDate).toISOString() : new Date().toISOString(),
+                        sentiment,
+                        category: 'other',
+                        hashtags: ['#EmergenciaPereira'],
+                        location_text: location.name,
+                        location: location,
+                        likes: 0,
+                        retweets: 0,
+                        postUrl,
+                        source: 'live', // We consider OSINT data as live
+                    };
+                });
+            }
+        } catch (e) {
+            console.warn(`[OSINT Scraper] Falló instancia Nitter: ${baseUrl}`);
+            continue; // Try next instance
+        }
+    }
+    
+    throw new Error("Todas las instancias del Scraper Nitter fallaron o están bloqueadas.");
+}
+
 export async function GET() {
     const bearerToken = process.env.TWITTER_BEARER_TOKEN;
     
@@ -323,8 +394,24 @@ export async function GET() {
                 });
             }
         } catch (err) {
-            console.warn('[Hashtag API] Twitter API no disponible, usando datos simulados:', err);
+            console.warn('[Hashtag API] Twitter API no disponible:', err);
         }
+    }
+    
+    // Intento secundario: Scraper de rescate OSINT (Nitter) si no hay token o falló el oficial
+    try {
+        const osintPosts = await fetchNitterScraper();
+        if (osintPosts && osintPosts.length > 0) {
+            return NextResponse.json({
+                posts: osintPosts,
+                source: 'live', // Considerado live ya que viene directamente de scraping en red abierta
+                hashtag: '#EmergenciaPereira',
+                count: osintPosts.length,
+                note: 'Datos provistos por Scraper de Rescate OSINT (Nitter). API Key oficial no detectada.',
+            });
+        }
+    } catch (osintErr) {
+        console.warn('[Hashtag API] OSINT Scraper fallido. Retornando mocks. Error:', osintErr);
     }
     
     // Fallback: Use Gemini to enrich mock posts geocoding if needed

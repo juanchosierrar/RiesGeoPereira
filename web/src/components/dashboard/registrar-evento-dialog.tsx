@@ -105,8 +105,8 @@ export function RegistrarEventoDialog() {
         }));
     };
 
-    const handleSelectChange = (name: string, value: string) => {
-        setFormData(prev => ({ ...prev, [name]: value }));
+    const handleSelectChange = (name: string, value: string | null | undefined) => {
+        setFormData(prev => ({ ...prev, [name]: value || "" }));
     };
 
     const handleSubmit = async (e: React.FormEvent) => {

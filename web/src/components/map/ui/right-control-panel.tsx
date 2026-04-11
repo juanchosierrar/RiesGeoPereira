@@ -132,11 +132,11 @@ export function RightControlPanel(props: RightControlPanelProps) {
     // Pre-calculate header data to improve reconciliation stability
     const { headerIcon: HeaderIcon, headerTitle } = (() => {
         if (isSocialSection && activeTab === 'capas') return { headerIcon: Activity, headerTitle: 'Monitor Redes Sociales' };
+        if (isMonitoringSection && activeTab === 'capas') return { headerIcon: Zap, headerTitle: 'Panel de Monitoreo' };
         if (activeTab === 'capas') return { headerIcon: Layers, headerTitle: 'Capas de Información' };
         if (isWeatherSection && activeTab === 'info') return { headerIcon: CloudRain, headerTitle: 'Panel de Clima' };
         if (isRiskSection && activeTab === 'info') return { headerIcon: AlertTriangle, headerTitle: 'Panel de Riesgos' };
         if (isSeismicSection && activeTab === 'info') return { headerIcon: Activity, headerTitle: 'Panel de Sismos' };
-        if (isMonitoringSection && activeTab === 'capas') return { headerIcon: Zap, headerTitle: 'Panel de Monitoreo' };
         return { headerIcon: Info, headerTitle: 'Información y Leyendas' };
     })();
 
