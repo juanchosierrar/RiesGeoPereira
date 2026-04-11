@@ -31,6 +31,20 @@ import { AnalyticsPanel } from './panels/analytics-panel';
 import { getSocialPosts, getHashtagPosts, type SocialPost, type HashtagPost } from '@/lib/social-service';
 import { MessageCircle, Hash } from 'lucide-react';
 
+// ---------------------------------------------------------------------------
+// Safe JSON fetch — never throws SyntaxError when server returns HTML
+// ---------------------------------------------------------------------------
+async function safeJsonFetch<T = unknown>(url: string, init?: RequestInit): Promise<T | null> {
+    try {
+        const res = await fetch(url, init);
+        const text = await res.text();
+        if (!text.trim().startsWith('{') && !text.trim().startsWith('[')) return null;
+        return JSON.parse(text) as T;
+    } catch {
+        return null;
+    }
+}
+
 // --- Pluviosidad por altitud (proxy IDEAM/OMM para Risaralda) ---
 // Fuente: Atlas Climatológico IDEAM 2015
 type RainfallLevel = { label: string; mmYear: string; iconBg: string; iconBorder: string; iconText: string; glow: string; pulse: string; };
@@ -179,7 +193,7 @@ export default function MapCanvas() {
     const [digerData, setDigerData] = useState<FeatureCollection | null>(null);
 
     // New persistent reports (Real-time)
-    const [reportesDigerVisible, setReportesDigerVisible] = useState(false);
+    const [reportesDigerVisible, setReportesDigerVisible] = useState(true); // On by default
     const [reportesDigerData, setReportesDigerData] = useState<FeatureCollection | null>(null);
     const [reportesDigerLoading, setReportesDigerLoading] = useState(false);
     const [selectedReporteDiger, setSelectedReporteDiger] = useState<any>(null);
@@ -260,9 +274,8 @@ export default function MapCanvas() {
             .finally(() => setUsgsLoading(false));
 
         // Load SGC Volcanic Hazard Zones
-        fetch('/api/sgc/volcanica')
-            .then(r => r.json())
-            .then(data => setVolcanicZones(data))
+        safeJsonFetch('/api/sgc/volcanica')
+            .then(data => { if (data) setVolcanicZones(data); })
             .catch(err => console.error('SGC Volcanic fetch error:', err))
             .finally(() => setVolcanicLoading(false));
 
@@ -368,17 +381,15 @@ export default function MapCanvas() {
             
         // Load Simulacion 1999
         setSimulacion1999Loading(true);
-        fetch('/Geodata/simulacion_1999.geojson')
-            .then(res => res.json())
-            .then(data => setSimulacion1999Data(data))
+        safeJsonFetch('/Geodata/simulacion_1999.geojson')
+            .then(data => { if (data) setSimulacion1999Data(data as any); })
             .catch(err => console.error('Simulacion 1999 fetch error:', err))
             .finally(() => setSimulacion1999Loading(false));
             
         // Load Simulacion 1961
         setSimulacion1961Loading(true);
-        fetch('/Geodata/simulacion_1961.geojson')
-            .then(res => res.json())
-            .then(data => setSimulacion1961Data(data))
+        safeJsonFetch('/Geodata/simulacion_1961.geojson')
+            .then(data => { if (data) setSimulacion1961Data(data as any); })
             .catch(err => console.error('Simulacion 1961 fetch error:', err))
             .finally(() => setSimulacion1961Loading(false));
             
@@ -425,7 +436,8 @@ export default function MapCanvas() {
             try {
                 setReportesDigerLoading(true);
                 const response = await fetch('/api/diger/reporte');
-                const data = await response.json();
+                const text = await response.text();
+                const data = JSON.parse(text);
                 setReportesDigerData(data);
             } catch (err) {
                 console.error('Error fetching real-time DIGER reports:', err);
@@ -436,7 +448,15 @@ export default function MapCanvas() {
 
         fetchReportes();
         const interval = setInterval(fetchReportes, 30000); // Polling cada 30s
-        return () => clearInterval(interval);
+
+        // Listen for manual reload trigger after form submission
+        const onNewReport = () => fetchReportes();
+        window.addEventListener('diger:reload', onNewReport);
+
+        return () => {
+            clearInterval(interval);
+            window.removeEventListener('diger:reload', onNewReport);
+        };
     }, []);
 
     // Effect to fetch IDEAM MapServer layers when toggled
@@ -465,18 +485,14 @@ export default function MapCanvas() {
     useEffect(() => {
         if (ideamRadarVisible && !ideamRadarData && !ideamRadarLoading) {
             setIdeamRadarLoading(true);
-            fetch('http://127.0.0.1:8000/api/v1/weather/radar?station=Quibdo')
-                .then(r => r.json())
+            safeJsonFetch<any>('http://127.0.0.1:8000/api/v1/weather/radar?station=Quibdo')
                 .then(data => {
-                    if (data.image_base64 && data.bounds) {
+                    if (data?.image_base64 && data?.bounds) {
                         setIdeamRadarData({ image_base64: data.image_base64, bounds: data.bounds });
                     }
-                    setIdeamRadarLoading(false);
                 })
-                .catch(err => {
-                    console.error('Error fetching radar:', err);
-                    setIdeamRadarLoading(false);
-                });
+                .catch(err => console.error('Error fetching radar:', err))
+                .finally(() => setIdeamRadarLoading(false));
         }
     }, [ideamRadarVisible, ideamRadarData, ideamRadarLoading]);
 
@@ -484,14 +500,11 @@ export default function MapCanvas() {
     useEffect(() => {
         if (siataRadarVisible && !siataRadarData && !siataRadarLoading) {
             setSiataRadarLoading(true);
-            fetch('http://127.0.0.1:8000/api/v1/weather/radar/siata')
-                .then(r => r.json())
+            safeJsonFetch<any>('http://127.0.0.1:8000/api/v1/weather/radar/siata')
                 .then(data => {
-                    if (data.image_url && data.bounds) {
-                        setSiataRadarData(data);
-                    }
+                    if (data?.image_url && data?.bounds) setSiataRadarData(data);
                 })
-                .catch(err => console.error("Error fetching SIATA radar:", err))
+                .catch(err => console.error('Error fetching SIATA radar:', err))
                 .finally(() => setSiataRadarLoading(false));
         }
     }, [siataRadarVisible, siataRadarData, siataRadarLoading]);

@@ -41,28 +41,31 @@ const TIPOS_EVENTO = ["Deslizamiento", "Inundación", "Incendio", "Vendaval", "S
 const ESTADOS_EVENTO = ["Activo", "Controlado", "En evolución"];
 const CAUSAS_PROBABLES = ["Antrópica", "Natural", "Mixta"];
 
+const BLANK_FORM = {
+    entidad_reporta: "",
+    tipo_evento: "",
+    fecha_hora: new Date().toISOString().slice(0, 16),
+    direccion: "",
+    lat: 4.8133,
+    lon: -75.6961,
+    comuna: "",
+    barrio: "",
+    estado_evento: "",
+    causa_probable: "",
+    descripcion: "",
+    viv_afectadas: 0,
+    flia_afectadas: 0,
+    ad_afectados: 0,
+    men_afectados: 0,
+    lesionados: 0,
+    fallecidos: 0
+};
+
 export function RegistrarEventoDialog() {
     const [step, setStep] = useState(1);
     const [open, setOpen] = useState(false);
-    const [formData, setFormData] = useState({
-        entidad_reporta: "",
-        tipo_evento: "",
-        fecha_hora: new Date().toISOString().slice(0, 16),
-        direccion: "",
-        lat: 4.8133,
-        lon: -75.6961,
-        comuna: "",
-        barrio: "",
-        estado_evento: "",
-        causa_probable: "",
-        descripcion: "",
-        viv_afectadas: 0,
-        flia_afectadas: 0,
-        ad_afectados: 0,
-        men_afectados: 0,
-        lesionados: 0,
-        fallecidos: 0
-    });
+    const [formData, setFormData] = useState({ ...BLANK_FORM });
+    const [submitStatus, setSubmitStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
     const [isGeocoding, setIsGeocoding] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -111,8 +114,8 @@ export function RegistrarEventoDialog() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        
         setIsSubmitting(true);
+        setSubmitStatus(null);
         try {
             const response = await fetch('/api/diger/reporte', {
                 method: 'POST',
@@ -120,39 +123,32 @@ export function RegistrarEventoDialog() {
                 body: JSON.stringify(formData)
             });
 
-            const result = await response.json();
+            // Safely parse JSON - if server returns HTML (error page), catch it gracefully
+            const text = await response.text();
+            let result: any = {};
+            try {
+                result = JSON.parse(text);
+            } catch {
+                setSubmitStatus({ type: 'error', message: `Error del servidor (${response.status}). Intenta de nuevo.` });
+                return;
+            }
 
             if (result.success) {
-                // Notificar éxito (Podríamos usar un toast aquí)
-                alert(`¡Reporte #${result.id} registrado exitosamente!`);
-                setOpen(false);
-                setStep(1);
-                // Reset form
-                setFormData({
-                    entidad_reporta: "",
-                    tipo_evento: "",
-                    fecha_hora: new Date().toISOString().slice(0, 16),
-                    direccion: "",
-                    lat: 4.8133,
-                    lon: -75.6961,
-                    comuna: "",
-                    barrio: "",
-                    estado_evento: "",
-                    causa_probable: "",
-                    descripcion: "",
-                    viv_afectadas: 0,
-                    flia_afectadas: 0,
-                    ad_afectados: 0,
-                    men_afectados: 0,
-                    lesionados: 0,
-                    fallecidos: 0
-                });
+                // Signal map to reload DIGER reports immediately
+                window.dispatchEvent(new CustomEvent('diger:reload'));
+                setSubmitStatus({ type: 'success', message: `✅ ¡Reporte #${result.id} registrado y georeferenciado en el mapa!` });
+                setTimeout(() => {
+                    setOpen(false);
+                    setStep(1);
+                    setFormData({ ...BLANK_FORM });
+                    setSubmitStatus(null);
+                }, 2500);
             } else {
-                alert(`Error al guardar: ${result.error}`);
+                setSubmitStatus({ type: 'error', message: `Error: ${result.error || 'Error desconocido'}` });
             }
         } catch (error) {
             console.error("Submission error:", error);
-            alert("Error crítico al conectar con el servidor.");
+            setSubmitStatus({ type: 'error', message: 'Error crítico al conectar con el servidor.' });
         } finally {
             setIsSubmitting(false);
         }
@@ -383,6 +379,17 @@ export function RegistrarEventoDialog() {
                     )}
 
                     <DialogFooter className="pt-6 border-t border-border/50 gap-2 flex-col sm:flex-row">
+                        {/* Status message: success or error */}
+                        {submitStatus && (
+                            <div className={cn(
+                                "w-full text-sm font-semibold px-4 py-3 rounded-xl border text-center mb-2 animate-in fade-in",
+                                submitStatus.type === 'success'
+                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                    : "bg-red-50 text-red-600 border-red-200"
+                            )}>
+                                {submitStatus.message}
+                            </div>
+                        )}
                         {step > 1 && (
                             <Button 
                                 type="button" 

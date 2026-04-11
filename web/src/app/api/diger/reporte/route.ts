@@ -53,22 +53,38 @@ export async function POST(req: Request) {
     try {
         const data = await req.json();
         
-        // 1. Mapear datos del formulario exactamente al esquema plano de datos_diger
-        // fid es SERIAL/autoincremental, id parece también serlo pero la doc muestra que fid es la clave principal real.
+        // Generar IDs únicos ya que fid e id no tienen secuencia SERIAL en la DB
+        const uniqueId = Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 99999);
+        const lat = Number(data.lat);
+        const lon = Number(data.lon);
+
+        // Conversion approx WGS84 → MAGNA-SIRGAS EPSG:3116 (Origin Nacional)
+        // Using approximate offset constants for Pereira region
+        const x = lon * 111319.49079327357 + 1152922;
+        const y = lat * 110574.38855695147  + 1022480;
+
         const rowData = {
-            fecha: data.fecha_hora,
-            evento: data.tipo_evento,
-            sector: data.descripcion || '',
-            comcorr: data.comuna || '',
-            barrver: data.barrio || '',
-            viv: Number(data.viv_afectadas) || 0,
-            flia: Number(data.flia_afectadas) || 0,
-            ad: Number(data.ad_afectados) || 0,
-            men: Number(data.men_afectados) || 0,
-            les: Number(data.lesionados) || 0,
-            fall: Number(data.fallecidos) || 0,
-            lat: Number(data.lat),
-            lon: Number(data.lon)
+            fid:        uniqueId,
+            id:         uniqueId + 1,
+            fecha:      data.fecha_hora?.split('T')[0] ?? new Date().toISOString().split('T')[0],
+            evento:     (data.tipo_evento || '').toUpperCase(),
+            sector:     data.sector || 'U',           // U=Urbano, R=Rural
+            comcorr:    data.comuna || '',
+            barrver:    data.barrio || '',
+            sectcomun:  data.direccion || '',
+            viv:        Number(data.viv_afectadas) || 0,
+            flia:       Number(data.flia_afectadas) || 0,
+            ad:         Number(data.ad_afectados) || 0,
+            men:        Number(data.men_afectados) || 0,
+            les:        Number(data.lesionados) || 0,
+            fall:       Number(data.fallecidos) || 0,
+            perm:       0,
+            trans:      0,
+            lat,
+            lon,
+            x,
+            y,
+            indica_tim: Date.now()
         };
 
         // 2. Guardar en Insforge usando el SDK
