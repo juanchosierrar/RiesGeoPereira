@@ -25,5 +25,7 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-    matcher: ['/dashboard/:path*', '/login'],
+  matcher: [
+    '/((?!api|_next/static|_next/image|favicon.ico|assets).*)',
+  ],
 };
