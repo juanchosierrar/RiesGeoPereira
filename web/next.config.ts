@@ -11,11 +11,6 @@ const nextConfig: NextConfig = {
     // your project has type errors. This is to save RAM/Time during Hostinger build.
     ignoreBuildErrors: true,
   },
-  eslint: {
-    // Warning: This allows production builds to successfully complete even if
-    // your project has ESLint errors. This saves RAM during Hostinger build.
-    ignoreDuringBuilds: true,
-  },
   productionBrowserSourceMaps: false, // Save memory during compilation
   experimental: {
     optimizePackageImports: ['lucide-react', 'recharts'],
