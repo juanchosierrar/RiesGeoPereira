@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "cross-env NODE_OPTIONS='--max-old-space-size=2048' next dev -p 3000 --webpack",
-    "build": "cross-env NODE_OPTIONS='--max-old-space-size=2048' next build --webpack --no-lint",
+    "build": "cross-env NODE_OPTIONS='--max-old-space-size=2048' next build --webpack",
     "start": "next start",
     "lint": "eslint"
   },
