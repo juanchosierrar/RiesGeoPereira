@@ -14,7 +14,7 @@ const nextConfig: NextConfig = {
   productionBrowserSourceMaps: false, // Save memory during compilation
   experimental: {
     optimizePackageImports: ['lucide-react', 'recharts'],
-    webpackBuildWorker: true, // Use a separate process for build tasks
+    webpackBuildWorker: false, // Use a separate process for build tasks
     cpus: 1, // Limit parallelism to avoid exceeding RAM limits on Hostinger
   },
   turbopack: {

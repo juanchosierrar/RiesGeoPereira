@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "cross-env NODE_OPTIONS='--max-old-space-size=2048' next dev -p 3000 --webpack",
-    "build": "cross-env NODE_OPTIONS='--max-old-space-size=2048' next build --webpack",
+    "build": "rimraf .next && cross-env NODE_OPTIONS='--max-old-space-size=2048' next build --webpack",
     "start": "next start",
     "lint": "eslint"
   },
@@ -54,6 +54,7 @@
     "rehype-pretty-code": "^0.14.1",
     "rehype-slug": "^6.0.0",
     "remark-gfm": "^4.0.1",
+    "rimraf": "^6.1.3",
     "shiki": "^3.22.0",
     "tailwindcss": "^4",
     "typescript": "^5"
