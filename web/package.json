@@ -58,5 +58,12 @@
     "shiki": "^3.22.0",
     "tailwindcss": "^4",
     "typescript": "^5"
+  },
+  "optionalDependencies": {
+    "@next/swc-linux-x64-musl": "16.1.3",
+    "@next/swc-linux-x64-gnu": "16.1.3",
+    "@next/swc-linux-arm64-musl": "16.1.3",
+    "@next/swc-linux-arm64-gnu": "16.1.3"
   }
 }
+

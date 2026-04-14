@@ -2,10 +2,12 @@ FROM node:22-alpine AS base
 
 # --- Dependencies ---
 FROM base AS deps
-RUN apk add --no-cache libc6-compat
+RUN apk add --no-cache libc6-compat python3 make g++
 WORKDIR /app
 COPY web/package.json web/package-lock.json web/.npmrc ./
+# Install deps and force the correct native SWC binary for Linux musl (Alpine)
 RUN npm ci
+RUN npm install @next/swc-linux-x64-musl --no-save --ignore-scripts
 
 # --- Build ---
 FROM base AS builder
