@@ -1,13 +1,18 @@
-FROM node:22-alpine AS base
+FROM node:22-slim AS base
 
 # --- Dependencies ---
 FROM base AS deps
-RUN apk add --no-cache libc6-compat python3 make g++
+# Install compatibility libraries for native binaries
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 make g++ \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
-COPY web/package.json web/package-lock.json web/.npmrc ./
-# Install deps and force the correct native SWC binary for Linux musl (Alpine)
-RUN npm ci
-RUN npm install @next/swc-linux-x64-musl --no-save --ignore-scripts
+# Copy only what's needed to install dependencies
+COPY web/package.json web/.npmrc ./
+# Use npm install (NOT npm ci) so npm downloads the correct
+# platform-specific SWC binary for THIS Linux host, regardless
+# of what OS generated the lockfile.
+RUN npm install --legacy-peer-deps
 
 # --- Build ---
 FROM base AS builder
@@ -18,15 +23,15 @@ ENV NODE_OPTIONS="--max-old-space-size=2048"
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
-# --- Production ---
+# --- Production Runner ---
 FROM base AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+RUN groupadd --system --gid 1001 nodejs \
+    && useradd --system --uid 1001 --gid nodejs nextjs
 
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
