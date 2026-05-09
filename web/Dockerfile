@@ -1,29 +1,34 @@
-FROM node:22-slim AS base
+# ---- Base: Downgraded to Node 20 LTS for webpack stability ----
+FROM node:20-slim AS base
 
-# --- Dependencies ---
+# ---- Dependencies ----
 FROM base AS deps
-# Install compatibility libraries for native binaries
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 make g++ \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
-# Copy only what's needed to install dependencies
+
+# Copy package files
 COPY web/package.json web/.npmrc ./
-# Use npm install (NOT npm ci) so npm downloads the correct
-# platform-specific SWC binary for THIS Linux host, regardless
-# of what OS generated the lockfile.
+
+# Install deps (npm install resolves platform-specific SWC binaries for this Linux host)
 RUN npm install --legacy-peer-deps
 
-# --- Build ---
+# ---- Build ----
 FROM base AS builder
 WORKDIR /app
+
+# Increase Node memory for webpack build
+ENV NODE_OPTIONS="--max-old-space-size=3072"
+ENV NEXT_TELEMETRY_DISABLED=1
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY web/ ./
-ENV NODE_OPTIONS="--max-old-space-size=2048"
-ENV NEXT_TELEMETRY_DISABLED=1
+
+# Run a clean build (no rimraf, node_modules already clean from deps stage)
 RUN npm run build
 
-# --- Production Runner ---
+# ---- Production Runner ----
 FROM base AS runner
 WORKDIR /app
 

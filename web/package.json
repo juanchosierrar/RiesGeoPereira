@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "cross-env NODE_OPTIONS='--max-old-space-size=2048' next dev -p 3000 --webpack",
-    "build": "rimraf node_modules package-lock.json .next && npm install --legacy-peer-deps && cross-env NODE_OPTIONS='--max-old-space-size=2048' next build --webpack",
+    "build": "cross-env NODE_OPTIONS='--max-old-space-size=2048' next build",
+    "build:clean": "rimraf .next && cross-env NODE_OPTIONS='--max-old-space-size=2048' next build",
     "start": "next start",
     "lint": "eslint"
   },
@@ -66,4 +67,3 @@
     "@next/swc-linux-arm64-gnu": "16.1.3"
   }
 }
-
