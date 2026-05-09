@@ -8,10 +8,7 @@ const nextConfig: NextConfig = {
     // Allow production builds even with type errors to reduce RAM/time on Hostinger
     ignoreBuildErrors: true,
   },
-  eslint: {
-    // Skip ESLint during build to save time/memory on Hostinger
-    ignoreDuringBuilds: true,
-  },
+
   productionBrowserSourceMaps: false,
   experimental: {
     optimizePackageImports: ["lucide-react", "recharts"],
